@@ -9,7 +9,7 @@ description = "AI companion agent backend built on LiveKit Agents"
 requires-python = ">=3.10, <3.14"
 
 dependencies = [
-    "livekit-agents[silero,turn-detector]~=1.3",
+    "livekit-agents[silero]~=1.3",
     "livekit-plugins-noise-cancellation~=0.2",
     "python-dotenv",
 ]
