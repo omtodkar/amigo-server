@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from dotenv import load_dotenv
@@ -117,6 +118,9 @@ async def my_agent(ctx: JobContext):
             ),
         ),
     )
+
+    await asyncio.sleep(1)
+    await session.agent.say("Hey Amigo, how are you today?", language="en", allow_interruptions=True)
 
     # Join the room and connect to the user
     await ctx.connect()
