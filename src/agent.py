@@ -1,4 +1,4 @@
-import asyncio
+import json
 import logging
 
 from dotenv import load_dotenv
@@ -7,6 +7,7 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    ChatContext,
     JobContext,
     JobProcess,
     cli,
@@ -22,12 +23,13 @@ load_dotenv(".env.local")
 
 
 class Assistant(Agent):
-    def __init__(self) -> None:
+    def __init__(self, chat_ctx: ChatContext | None = None) -> None:
         super().__init__(
             instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
             You eagerly assist users with their questions by providing information from your extensive knowledge.
             Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
             You are curious, friendly, and have a sense of humor.""",
+            chat_ctx=chat_ctx,
         )
 
     # To add tools, use the @function_tool decorator.
@@ -65,6 +67,26 @@ async def my_agent(ctx: JobContext):
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
+
+    # Connect first to access participant metadata
+    await ctx.connect()
+
+    # Wait for the user to join
+    participant = await ctx.wait_for_participant()
+
+    # Read conversation history from participant metadata
+    initial_ctx = None
+    if participant.metadata:
+        try:
+            metadata = json.loads(participant.metadata)
+            history = metadata.get("conversation_history", [])
+            if history:
+                initial_ctx = ChatContext()
+                for msg in history:
+                    initial_ctx.add_message(role=msg["role"], content=msg["content"])
+                logger.info(f"Loaded {len(history)} messages from conversation history")
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse participant metadata as JSON")
 
     # Set up a voice AI pipeline using OpenAI, Cartesia, AssemblyAI, and the LiveKit turn detector
     session = AgentSession(
@@ -106,9 +128,11 @@ async def my_agent(ctx: JobContext):
     # # Start the avatar and wait for it to join
     # await avatar.start(session, room=ctx.room)
 
+    assistant = Assistant(chat_ctx=initial_ctx)
+
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=Assistant(),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -119,11 +143,13 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    await asyncio.sleep(1)
-    await session.agent.say("Hey Amigo, how are you today?", language="en", allow_interruptions=True)
-
-    # Join the room and connect to the user
-    await ctx.connect()
+    # Adjust greeting based on whether we have history
+    # if initial_ctx:
+    #     await asyncio.sleep(0.5)
+    #     await assistant.say("Welcome back! How can I help you?", language="en", allow_interruptions=True)
+    # else:
+    #     await asyncio.sleep(1)
+    #     await assistant.say("Hey Amigo, how are you today?", language="en", allow_interruptions=True)
 
 
 if __name__ == "__main__":
