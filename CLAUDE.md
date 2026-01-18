@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a LiveKit Agents project - a Python voice AI assistant using LiveKit Cloud. The agent uses a voice pipeline with OpenAI (LLM), Cartesia (TTS), and AssemblyAI (STT).
+Amigo is an AI companion agent backend built on LiveKit Agents. It uses a voice pipeline with OpenAI (LLM), Cartesia (TTS), and AssemblyAI (STT) via LiveKit Cloud.
 
 ## Commands
 

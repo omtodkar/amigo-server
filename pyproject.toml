@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-starter-python"
-version = "1.0.0"
-description = "Simple voice AI assistant built with LiveKit Agents for Python"
+name = "amigo"
+version = "0.1.0"
+description = "AI companion agent backend built on LiveKit Agents"
 requires-python = ">=3.10, <3.14"
 
 dependencies = [
