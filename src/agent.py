@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from collections.abc import AsyncIterable
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -10,16 +9,12 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     ChatContext,
-    ChatMessage,
-    FunctionTool,
     JobContext,
     JobProcess,
-    ModelSettings,
     RunContext,
     cli,
     function_tool,
     get_job_context,
-    llm,
     room_io,
 )
 from livekit.plugins import deepgram, elevenlabs, google, noise_cancellation, silero
@@ -27,7 +22,6 @@ from livekit.plugins.turn_detector.english import EnglishModel
 
 from astrology import fetch_kundali
 from geocoding import geocode_place, get_timezone_offset
-from guardrails_config import validate_input, validate_output
 from models import SessionState
 from prompts import load_prompt
 
@@ -168,51 +162,8 @@ class Assistant(Agent):
             logger.warning(f"Text input request failed: {e}")
             return ""
 
-    async def on_user_turn_completed(
-        self, turn_ctx: ChatContext, new_message: ChatMessage
-    ) -> None:
-        """Validate user input before LLM processing."""
-        text = new_message.text_content
-        if text:
-            passed, result = validate_input(text)
-            if not passed:
-                # Replace message content with rejection notice
-                new_message.content = [result]
-                logger.info("Toxic input blocked, replaced with rejection message")
 
-    async def llm_node(
-        self,
-        chat_ctx: llm.ChatContext,
-        tools: list[FunctionTool],
-        model_settings: ModelSettings,
-    ) -> AsyncIterable[llm.ChatChunk]:
-        """Validate and filter LLM output before TTS."""
-        buffer = ""
-
-        async for chunk in Agent.default.llm_node(
-            self, chat_ctx, tools, model_settings
-        ):
-            # Accumulate text for sentence-level validation
-            if isinstance(chunk, str):
-                buffer += chunk
-                # Validate on sentence boundaries
-                if any(buffer.endswith(p) for p in ".!?"):
-                    validated = validate_output(buffer)
-                    yield validated
-                    buffer = ""
-                else:
-                    yield chunk
-            else:
-                yield chunk
-
-        # Flush remaining buffer
-        if buffer:
-            yield validate_output(buffer)
-
-
-# Increase memory warning threshold from default 500MB to 800MB
-# because Presidio PII detector loads spaCy NLP models
-server = AgentServer(job_memory_warn_mb=800)
+server = AgentServer()
 
 
 def prewarm(proc: JobProcess):

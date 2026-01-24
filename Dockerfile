@@ -45,18 +45,6 @@ RUN mkdir -p src
 # Ensure your uv.lock file is checked in for consistency across environments
 RUN uv sync --locked
 
-# Install Guardrails validators from the Hub
-# These are used for input/output filtering (toxic language, PII detection)
-RUN --mount=type=secret,id=guardrails_api_key \
-    GUARDRAILS_API_KEY=$(cat /run/secrets/guardrails_api_key 2>/dev/null) && \
-    if [ -n "$GUARDRAILS_API_KEY" ]; then \
-        echo "n" | uv run guardrails configure --token "$GUARDRAILS_API_KEY" --enable-remote-inferencing && \
-        uv run guardrails hub install hub://guardrails/toxic_language --quiet && \
-        uv run guardrails hub install hub://guardrails/detect_pii --quiet; \
-    else \
-        echo "GUARDRAILS_API_KEY not set, skipping validator installation"; \
-    fi
-
 # Copy all remaining application files into the container
 # This includes source code, configuration files, and dependency specifications
 # (Excludes files specified in .dockerignore)
