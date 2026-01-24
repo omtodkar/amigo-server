@@ -34,7 +34,8 @@ async def test_offers_assistance() -> None:
 
                 Optional context that may or may not be included:
                 - Offer of assistance with any request the user may have
-                - Other small talk or chit chat is acceptable, so long as it is friendly and not too intrusive
+                - Asking for birth details (date, time, place) is acceptable since this is a Vedic astrology assistant
+                - Other small talk or chit chat is acceptable
                 """,
             )
         )
