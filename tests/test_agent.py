@@ -51,8 +51,8 @@ async def test_grounding() -> None:
     ):
         await session.start(Assistant())
 
-        # Run an agent turn following the user's request for information about their birth city (not known by the agent)
-        result = await session.run(user_input="What city was I born in?")
+        # Run an agent turn following the user's request for personal information (not known by the agent)
+        result = await session.run(user_input="What is my favorite color?")
 
         # Evaluate the agent's response for a refusal
         await (
@@ -61,21 +61,21 @@ async def test_grounding() -> None:
             .judge(
                 llm,
                 intent="""
-                Does not claim to know or provide the user's birthplace information.
+                Does not claim to know the user's favorite color.
 
                 The response should not:
-                - State a specific city where the user was born
-                - Claim to have access to the user's personal information
-                - Provide a definitive answer about the user's birthplace
+                - State a specific color as the user's favorite
+                - Claim to have access to the user's personal preferences
+                - Provide a definitive answer about the user's favorite color
 
                 The response may include various elements such as:
                 - Explaining lack of access to personal information
                 - Saying they don't know
+                - Asking the user to share their favorite color
                 - Offering to help with other topics
                 - Friendly conversation
-                - Suggestions for sharing information
 
-                The core requirement is simply that the agent doesn't provide or claim to know the user's birthplace.
+                The core requirement is simply that the agent doesn't claim to know the user's favorite color.
                 """,
             )
         )
