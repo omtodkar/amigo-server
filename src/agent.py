@@ -22,7 +22,7 @@ from livekit.agents import (
     llm,
     room_io,
 )
-from livekit.plugins import cartesia, deepgram, google, noise_cancellation, silero
+from livekit.plugins import deepgram, elevenlabs, google, noise_cancellation, silero
 from livekit.plugins.turn_detector.english import EnglishModel
 
 from astrology import fetch_kundali
@@ -250,7 +250,7 @@ async def my_agent(ctx: JobContext):
         except json.JSONDecodeError:
             logger.warning("Failed to parse participant metadata as JSON")
 
-    # Set up a voice AI pipeline using OpenAI, Cartesia, AssemblyAI, and the LiveKit turn detector
+    # Set up a voice AI pipeline using Deepgram STT, Google LLM, ElevenLabs TTS, and LiveKit turn detector
     session = AgentSession[SessionState](
         # Session state for storing birth details and other user data
         userdata=SessionState(),
@@ -262,7 +262,7 @@ async def my_agent(ctx: JobContext):
         llm=google.LLM(model="gemini-2.5-flash"),
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
-        tts=cartesia.TTS(voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"),
+        tts=elevenlabs.TTS(model="eleven_flash_v2_5", voice_id="bvN2rlvpvH1mT3gPeNUl"),
         # VAD is used to determine when the user is speaking
         vad=ctx.proc.userdata["vad"],
         # Turn detection uses the English model for context-aware end-of-turn detection
