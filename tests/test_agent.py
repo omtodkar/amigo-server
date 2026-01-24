@@ -1,5 +1,3 @@
-import os
-
 import pytest
 from livekit.agents import AgentSession, llm
 from livekit.plugins import google
@@ -8,7 +6,7 @@ from agent import Assistant
 
 
 def _llm() -> llm.LLM:
-    return google.LLM(model="gemini-2.5-flash", api_key=os.getenv("GEMINI_API_KEY"))
+    return google.LLM(model="gemini-2.5-flash")
 
 
 @pytest.mark.asyncio
