@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+from collections.abc import AsyncIterable
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -8,13 +10,27 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     ChatContext,
+    ChatMessage,
+    FunctionTool,
     JobContext,
     JobProcess,
+    ModelSettings,
+    RunContext,
     cli,
+    function_tool,
+    get_job_context,
     inference,
+    llm,
     room_io,
 )
-from livekit.plugins import noise_cancellation, silero
+from livekit.plugins import cartesia, deepgram, noise_cancellation, silero
+from livekit.plugins.turn_detector.english import EnglishModel
+
+from astrology import fetch_kundali
+from geocoding import geocode_place, get_timezone_offset
+from guardrails_config import validate_input, validate_output
+from models import SessionState
+from prompts import load_prompt
 
 logger = logging.getLogger("agent")
 
@@ -22,34 +38,182 @@ load_dotenv(".env.local")
 
 
 class Assistant(Agent):
-    def __init__(self, chat_ctx: ChatContext | None = None) -> None:
+    def __init__(
+        self, kundali: str | None = None, chat_ctx: ChatContext | None = None
+    ) -> None:
+        instructions = load_prompt("assistant.md")
+        if kundali:
+            instructions += "\n\n" + kundali
         super().__init__(
-            instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
-            You are curious, friendly, and have a sense of humor.""",
+            instructions=instructions,
             chat_ctx=chat_ctx,
         )
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool()
+    async def record_birth_details(
+        self,
+        context: RunContext[SessionState],
+        date_of_birth: str | None = None,
+        time_of_birth: str | None = None,
+        place_of_birth: str | None = None,
+    ) -> str:
+        """Record the user's birth details for astrological reading.
+
+        Call this tool when the user provides their birth information.
+        You can call this multiple times as the user provides each piece of information.
+
+        Args:
+            date_of_birth: Date of birth (e.g., "March 15, 1990" or "1990-03-15")
+            time_of_birth: Time of birth (e.g., "3:30 PM", "around noon", "morning")
+            place_of_birth: City and country of birth (e.g., "Mumbai, India")
+        """
+        state = context.userdata
+
+        # Step 1: Record provided details
+        if date_of_birth:
+            state.date_of_birth = date_of_birth
+            logger.info(f"Recorded date of birth: {date_of_birth}")
+        if time_of_birth:
+            state.time_of_birth = time_of_birth
+            logger.info(f"Recorded time of birth: {time_of_birth}")
+
+        # Step 2: Geocode place -> lat/lon
+        if place_of_birth:
+            coords = await geocode_place(place_of_birth)
+            if not coords:
+                logger.warning(f"Failed to geocode {place_of_birth}")
+                return f"Could not locate '{place_of_birth}'. Please clarify the city and country."
+            state.latitude, state.longitude = coords
+            logger.info(f"Geocoded {place_of_birth} to {coords}")
+
+        # Check what's still missing
+        missing = []
+        if not state.date_of_birth:
+            missing.append("date of birth")
+        if not state.time_of_birth:
+            missing.append("time of birth")
+        if state.latitude is None:
+            missing.append("place of birth")
+
+        if missing:
+            return f"Recorded. Still need: {', '.join(missing)}"
+
+        # Step 3: Fetch timezone (requires lat/lon + date/time)
+        timezone = await get_timezone_offset(
+            state.latitude, state.longitude, state.date_of_birth, state.time_of_birth
+        )
+        if timezone is None:
+            logger.warning("Failed to fetch timezone")
+            return "Could not determine timezone for the birth location. Please verify the place."
+        state.timezone = timezone
+        logger.info(f"Fetched timezone: {timezone}")
+
+        # Step 4: Fetch kundali (requires all details + timezone)
+        logger.info("All birth details collected, fetching kundali...")
+        kundali = await fetch_kundali(
+            state.date_of_birth,
+            state.time_of_birth,
+            state.latitude,
+            state.longitude,
+            state.timezone,
+        )
+        if not kundali:
+            logger.warning("Failed to fetch kundali from API")
+            return "Failed to generate kundali. Please verify the birth details are correct."
+
+        state.kundali = kundali
+        context.session.update_agent(Assistant(kundali=kundali))
+        logger.info("Kundali generated and agent updated")
+        return "Kundali generated successfully. You now have access to the user's birth chart."
+
+    @function_tool()
+    async def request_text_input(
+        self,
+        context: RunContext[SessionState],
+        field_name: str,
+        prompt_message: str,
+    ) -> str:
+        """Request text input from the user when voice recognition is difficult.
+
+        Call this when you're having trouble understanding specific information
+        like place names, spellings, or technical terms.
+
+        Args:
+            field_name: The field being requested (e.g., "place_of_birth", "name")
+            prompt_message: Message to show the user explaining what to type
+        """
+        try:
+            room = get_job_context().room
+            participants = list(room.remote_participants.values())
+            if not participants:
+                logger.warning("No remote participants found for text input request")
+                return ""
+
+            participant = participants[0]
+
+            response = await room.local_participant.perform_rpc(
+                destination_identity=participant.identity,
+                method="requestTextInput",
+                payload=json.dumps(
+                    {
+                        "field": field_name,
+                        "prompt": prompt_message,
+                    }
+                ),
+                response_timeout=60.0,  # Give user time to type
+            )
+
+            result = json.loads(response)
+            return result.get("text", "")
+        except Exception as e:
+            logger.warning(f"Text input request failed: {e}")
+            return ""
+
+    async def on_user_turn_completed(
+        self, turn_ctx: ChatContext, new_message: ChatMessage
+    ) -> None:
+        """Validate user input before LLM processing."""
+        text = new_message.text_content
+        if text:
+            passed, result = validate_input(text)
+            if not passed:
+                # Replace message content with rejection notice
+                new_message.content = [result]
+                logger.info("Toxic input blocked, replaced with rejection message")
+
+    async def llm_node(
+        self,
+        chat_ctx: llm.ChatContext,
+        tools: list[FunctionTool],
+        model_settings: ModelSettings,
+    ) -> AsyncIterable[llm.ChatChunk]:
+        """Validate and filter LLM output before TTS."""
+        buffer = ""
+
+        async for chunk in Agent.default.llm_node(
+            self, chat_ctx, tools, model_settings
+        ):
+            # Accumulate text for sentence-level validation
+            if isinstance(chunk, str):
+                buffer += chunk
+                # Validate on sentence boundaries
+                if any(buffer.endswith(p) for p in ".!?"):
+                    validated = validate_output(buffer)
+                    yield validated
+                    buffer = ""
+                else:
+                    yield chunk
+            else:
+                yield chunk
+
+        # Flush remaining buffer
+        if buffer:
+            yield validate_output(buffer)
 
 
-server = AgentServer()
+# Increase memory warning threshold from default 500MB to 800MB
+# because Presidio PII detector loads spaCy NLP models
+server = AgentServer(job_memory_warn_mb=800)
 
 
 def prewarm(proc: JobProcess):
@@ -59,7 +223,7 @@ def prewarm(proc: JobProcess):
 server.setup_fnc = prewarm
 
 
-@server.rtc_session()
+@server.rtc_session(agent_name=os.getenv("AGENT_NAME"))
 async def my_agent(ctx: JobContext):
     # Logging setup
     # Add any other context you want in all log entries here
@@ -88,23 +252,22 @@ async def my_agent(ctx: JobContext):
             logger.warning("Failed to parse participant metadata as JSON")
 
     # Set up a voice AI pipeline using OpenAI, Cartesia, AssemblyAI, and the LiveKit turn detector
-    session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
-        stt=inference.STT(model="assemblyai/universal-streaming", language="en"),
+    session = AgentSession[SessionState](
+        # Session state for storing birth details and other user data
+        userdata=SessionState(),
+        # Speech-to-text (STT) using Deepgram directly (bypasses LiveKit inference quota)
+        # See all available models at https://docs.livekit.io/agents/models/stt/plugins/deepgram/
+        stt=deepgram.STT(model="nova-3", language="en"),
         # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
         # See all available models at https://docs.livekit.io/agents/models/llm/
         llm=inference.LLM(model="openai/gpt-4.1-mini"),
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
-        tts=inference.TTS(
-            model="cartesia/sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
-        ),
+        tts=cartesia.TTS(voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"),
         # VAD is used to determine when the user is speaking
-        # TODO: Re-enable turn detector when memory constraints are resolved
-        # To restore: add turn-detector to pyproject.toml extras, import MultilingualModel,
-        # and add: turn_detection=MultilingualModel()
         vad=ctx.proc.userdata["vad"],
+        # Turn detection uses the English model for context-aware end-of-turn detection
+        turn_detection=EnglishModel(),
         # allow the LLM to generate a response while waiting for the end of turn
         # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
@@ -143,13 +306,15 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    # Adjust greeting based on whether we have history
-    # if initial_ctx:
-    #     await asyncio.sleep(0.5)
-    #     await assistant.say("Welcome back! How can I help you?", language="en", allow_interruptions=True)
-    # else:
-    #     await asyncio.sleep(1)
-    #     await assistant.say("Hey Amigo, how are you today?", language="en", allow_interruptions=True)
+    # Generate greeting based on whether user has conversation history
+    if initial_ctx:
+        session.generate_reply(
+            instructions="Say a brief welcome back greeting in one short sentence"
+        )
+    else:
+        session.generate_reply(
+            instructions="Say a brief friendly greeting in one short sentence"
+        )
 
 
 if __name__ == "__main__":
