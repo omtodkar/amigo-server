@@ -47,10 +47,10 @@ RUN uv sync --locked
 
 # Install Guardrails validators from the Hub
 # These are used for input/output filtering (toxic language, PII detection)
-ARG GUARDRAILS_API_KEY
 RUN --mount=type=secret,id=guardrails_api_key \
-    GUARDRAILS_API_KEY=$(cat /run/secrets/guardrails_api_key 2>/dev/null || echo "$GUARDRAILS_API_KEY") && \
+    GUARDRAILS_API_KEY=$(cat /run/secrets/guardrails_api_key 2>/dev/null) && \
     if [ -n "$GUARDRAILS_API_KEY" ]; then \
+        uv run guardrails configure --token "$GUARDRAILS_API_KEY" --enable-remote-inferencing --quiet && \
         uv run guardrails hub install hub://guardrails/toxic_language --quiet && \
         uv run guardrails hub install hub://guardrails/detect_pii --quiet; \
     else \
