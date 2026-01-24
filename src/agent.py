@@ -19,7 +19,6 @@ from livekit.agents import (
     cli,
     function_tool,
     get_job_context,
-    inference,
     llm,
     room_io,
 )
