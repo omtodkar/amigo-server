@@ -213,8 +213,7 @@ def _format_kundali(astro: dict, planets: list[dict], dasha: dict | None = None)
             f"({major['start_date']} to {major['end_date']})"
         )
         lines.append(
-            f"- Antardasha: {sub['planet']} "
-            f"({sub['start_date']} to {sub['end_date']})"
+            f"- Antardasha: {sub['planet']} ({sub['start_date']} to {sub['end_date']})"
         )
 
     return "\n".join(lines)
