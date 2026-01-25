@@ -8,6 +8,7 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    APIConnectOptions,
     ChatContext,
     JobContext,
     JobProcess,
@@ -17,6 +18,7 @@ from livekit.agents import (
     get_job_context,
     room_io,
 )
+from livekit.agents.voice.agent_session import SessionConnectOptions
 from livekit.plugins import deepgram, elevenlabs, google, noise_cancellation, silero
 from livekit.plugins.turn_detector.english import EnglishModel
 
@@ -221,6 +223,14 @@ async def my_agent(ctx: JobContext):
         # allow the LLM to generate a response while waiting for the end of turn
         # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
+        # Increase timeout and retries for LLM to handle Gemini server delays
+        conn_options=SessionConnectOptions(
+            llm_conn_options=APIConnectOptions(
+                max_retry=5,  # default is 3
+                timeout=30.0,  # default is 10s, increased for Gemini delays
+                retry_interval=3.0,  # default is 2s
+            ),
+        ),
     )
 
     # To use a realtime model instead of a voice pipeline, use the following session setup instead.
