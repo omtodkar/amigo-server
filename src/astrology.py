@@ -143,7 +143,40 @@ async def _fetch_planet_positions(
         return []
 
 
-def _format_kundali(astro: dict, planets: list[dict]) -> str:
+async def _fetch_current_dasha(
+    client: httpx.AsyncClient, params: dict, auth_header: str
+) -> dict | None:
+    """Fetch current Chardasha from the API."""
+    try:
+        response = await client.post(
+            f"{ASTROLOGY_API_BASE_URL}/current_chardasha",
+            json=params,
+            headers={"Authorization": auth_header, "Content-Type": "application/json"},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        return {
+            "major_dasha": {
+                "sign_name": data.get("major_dasha", {}).get("sign_name", ""),
+                "duration": data.get("major_dasha", {}).get("duration", ""),
+                "start_date": data.get("major_dasha", {}).get("start_date", ""),
+                "end_date": data.get("major_dasha", {}).get("end_date", ""),
+            },
+            "sub_dasha": {
+                "sign_name": data.get("sub_dasha", {}).get("sign_name", ""),
+                "duration": data.get("sub_dasha", {}).get("duration", ""),
+                "start_date": data.get("sub_dasha", {}).get("start_date", ""),
+                "end_date": data.get("sub_dasha", {}).get("end_date", ""),
+            },
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch current dasha: {e}")
+        return None
+
+
+def _format_kundali(astro: dict, planets: list[dict], dasha: dict | None = None) -> str:
     """Format kundali data as text for LLM context."""
     lines = ["## User's Kundali (Birth Chart)", ""]
 
@@ -168,6 +201,21 @@ def _format_kundali(astro: dict, planets: list[dict]) -> str:
             f"- {planet['name']}: {planet['sign']} in House {planet['house']} "
             f"at {planet['degree']:.1f}°{retro} | "
             f"Nakshatra: {planet['nakshatra']} (Lord: {planet['nakshatra_lord']})"
+        )
+
+    # Current Dasha
+    if dasha:
+        lines.append("")
+        lines.append("### Current Dasha")
+        major = dasha["major_dasha"]
+        sub = dasha["sub_dasha"]
+        lines.append(
+            f"- Major Dasha: {major['sign_name']} ({major['duration']}, "
+            f"{major['start_date']} to {major['end_date']})"
+        )
+        lines.append(
+            f"- Sub Dasha: {sub['sign_name']} ({sub['duration']}, "
+            f"{sub['start_date']} to {sub['end_date']})"
         )
 
     return "\n".join(lines)
@@ -202,14 +250,17 @@ async def fetch_kundali(
         return None
 
     async with httpx.AsyncClient() as client:
-        # Fetch both endpoints in parallel
+        # Fetch all endpoints in parallel
         astro_task = _fetch_astro_details(client, params, auth_header)
         planets_task = _fetch_planet_positions(client, params, auth_header)
+        dasha_task = _fetch_current_dasha(client, params, auth_header)
 
-        astro_details, planets = await asyncio.gather(astro_task, planets_task)
+        astro_details, planets, dasha = await asyncio.gather(
+            astro_task, planets_task, dasha_task
+        )
 
         if not astro_details:
             logger.error("Failed to fetch astro details")
             return None
 
-        return _format_kundali(astro_details, planets)
+        return _format_kundali(astro_details, planets, dasha)
