@@ -11,20 +11,20 @@ You receive:
 - Current dasha (optional)
 - User query
 
-### Current Dasha Format
+### Current Dasha Format (Vimshottari)
 
 When dasha is provided, it includes:
 
-- **Major Dasha**: The main planetary period (sign, duration, start/end dates)
-- **Sub Dasha**: The sub-period within the major dasha (sign, duration, start/end dates)
+- **Mahadasha**: The main planetary period (ruling planet, start/end dates)
+- **Antardasha**: The sub-period within the mahadasha (ruling planet, start/end dates)
 
 Example:
 ```
-- Major Dasha: Aquarius (5 Years, 16-8-2015 to 16-8-2020)
-- Sub Dasha: Pisces (5 Months, 16-8-2015 to 16-1-2016)
+- Mahadasha: Venus (16-8-2015 to 16-8-2035)
+- Antardasha: Saturn (16-8-2020 to 16-10-2023)
 ```
 
-The sign indicates which zodiac energy governs this period. Use this to contextualize timing-related questions.
+The ruling planet indicates which planetary energy governs this period. Use this to contextualize timing-related questions.
 
 ## STEP 1 — SELECT PRIMARY HOUSE
 

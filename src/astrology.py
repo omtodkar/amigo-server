@@ -146,10 +146,10 @@ async def _fetch_planet_positions(
 async def _fetch_current_dasha(
     client: httpx.AsyncClient, params: dict, auth_header: str
 ) -> dict | None:
-    """Fetch current Chardasha from the API."""
+    """Fetch current Vimshottari Dasha from the API."""
     try:
         response = await client.post(
-            f"{ASTROLOGY_API_BASE_URL}/current_chardasha",
+            f"{ASTROLOGY_API_BASE_URL}/current_vdasha",
             json=params,
             headers={"Authorization": auth_header, "Content-Type": "application/json"},
             timeout=30.0,
@@ -157,18 +157,17 @@ async def _fetch_current_dasha(
         response.raise_for_status()
         data = response.json()
 
+        # Vimshottari Dasha uses planet names instead of signs
         return {
             "major_dasha": {
-                "sign_name": data.get("major_dasha", {}).get("sign_name", ""),
-                "duration": data.get("major_dasha", {}).get("duration", ""),
-                "start_date": data.get("major_dasha", {}).get("start_date", ""),
-                "end_date": data.get("major_dasha", {}).get("end_date", ""),
+                "planet": data.get("major", {}).get("planet", ""),
+                "start_date": data.get("major", {}).get("start", ""),
+                "end_date": data.get("major", {}).get("end", ""),
             },
             "sub_dasha": {
-                "sign_name": data.get("sub_dasha", {}).get("sign_name", ""),
-                "duration": data.get("sub_dasha", {}).get("duration", ""),
-                "start_date": data.get("sub_dasha", {}).get("start_date", ""),
-                "end_date": data.get("sub_dasha", {}).get("end_date", ""),
+                "planet": data.get("minor", {}).get("planet", ""),
+                "start_date": data.get("minor", {}).get("start", ""),
+                "end_date": data.get("minor", {}).get("end", ""),
             },
         }
     except Exception as e:
@@ -203,19 +202,19 @@ def _format_kundali(astro: dict, planets: list[dict], dasha: dict | None = None)
             f"Nakshatra: {planet['nakshatra']} (Lord: {planet['nakshatra_lord']})"
         )
 
-    # Current Dasha
+    # Current Dasha (Vimshottari)
     if dasha:
         lines.append("")
-        lines.append("### Current Dasha")
+        lines.append("### Current Dasha (Vimshottari)")
         major = dasha["major_dasha"]
         sub = dasha["sub_dasha"]
         lines.append(
-            f"- Major Dasha: {major['sign_name']} ({major['duration']}, "
-            f"{major['start_date']} to {major['end_date']})"
+            f"- Mahadasha: {major['planet']} "
+            f"({major['start_date']} to {major['end_date']})"
         )
         lines.append(
-            f"- Sub Dasha: {sub['sign_name']} ({sub['duration']}, "
-            f"{sub['start_date']} to {sub['end_date']})"
+            f"- Antardasha: {sub['planet']} "
+            f"({sub['start_date']} to {sub['end_date']})"
         )
 
     return "\n".join(lines)
