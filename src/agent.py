@@ -53,6 +53,83 @@ from store import UserStore
 logger = logging.getLogger("agent")
 
 
+def _summarize_kundali(kundali: dict) -> str:
+    """Build a brief human-readable summary of kundali data for the client."""
+    parts = []
+    if kundali.get("ascendant"):
+        parts.append(f"Ascendant: {kundali['ascendant']}")
+    if kundali.get("nakshatra"):
+        lord = kundali.get("nakshatra_lord", "")
+        parts.append(
+            f"Nakshatra: {kundali['nakshatra']}" + (f" (Lord: {lord})" if lord else "")
+        )
+
+    # Key planets: Sun, Moon, Mars, Jupiter, Venus
+    key_planets = {"Sun", "Moon", "Mars", "Jupiter", "Venus"}
+    for planet in kundali.get("planets", []):
+        name = planet.get("name", "")
+        if name in key_planets:
+            sign = planet.get("sign", "")
+            house = planet.get("house", "")
+            retro = " ℞" if planet.get("isRetro") == "true" else ""
+            parts.append(f"{name} in {sign} (House {house}){retro}")
+
+    dasha = kundali.get("dasha", {})
+    major = dasha.get("major", {})
+    if major.get("planet"):
+        parts.append(f"Mahadasha: {major['planet']}")
+
+    return " · ".join(parts) if parts else ""
+
+
+def _summarize_xray(xray: dict) -> str:
+    """Build a brief human-readable summary of personality X-Ray for the client."""
+    parts = []
+    core = xray.get("core_identity", {})
+    if core.get("archetype"):
+        parts.append(f"Archetype: {core['archetype']}")
+
+    emotional = xray.get("emotional_architecture", {})
+    if emotional.get("attachment_style"):
+        parts.append(f"Attachment: {emotional['attachment_style']}")
+
+    climate = xray.get("current_psychological_climate", {})
+    if climate.get("season_of_life"):
+        parts.append(f"Season: {climate['season_of_life']}")
+    if climate.get("primary_stressor"):
+        parts.append(f"Stressor: {climate['primary_stressor']}")
+
+    domain = xray.get("domain_specific_insight", {})
+    if domain.get("topic"):
+        parts.append(f"Focus: {domain['topic']}")
+
+    return " · ".join(parts) if parts else ""
+
+
+async def _send_activity(room: rtc.Room, text: str) -> None:
+    """Send an activity detail message to all remote participants."""
+    participants = list(room.remote_participants.values())
+    if participants and text:
+        try:
+            await room.local_participant.send_text(
+                text,
+                topic="agent-activity",
+                destination_identities=[p.identity for p in participants],
+            )
+        except Exception:
+            logger.debug("Failed to send activity to client")
+
+
+async def set_agent_stage(room: rtc.Room, stage: str, tool: str = "") -> None:
+    """Set agent pipeline stage and tool attributes visible to the client."""
+    await room.local_participant.set_attributes(
+        {
+            "lk.agent.stage": stage,
+            "lk.agent.tool": tool,
+        }
+    )
+
+
 @dataclass
 class BirthDetailsResult:
     """Result of the birth detail collection task."""
@@ -129,7 +206,10 @@ class CollectBirthDetailsTask(AgentTask[BirthDetailsResult]):
             logger.info(f"Recorded time of birth: {time_of_birth}")
 
         if place_of_birth:
+            room = get_job_context().room
+            await set_agent_stage(room, "collecting_birth_details", "geocoding")
             coords = await geocode_place(place_of_birth)
+            await set_agent_stage(room, "collecting_birth_details")
             if not coords:
                 logger.warning(f"Failed to geocode {place_of_birth}")
                 return (
@@ -243,7 +323,10 @@ class IntakeAgent(Agent):
         )
 
     async def on_enter(self) -> None:
+        room = get_job_context().room
+
         # Step 1: Run birth detail collection task
+        await set_agent_stage(room, "collecting_birth_details")
         birth = await CollectBirthDetailsTask(chat_ctx=self.chat_ctx)
 
         user_id = self.session.userdata.user_id
@@ -267,6 +350,7 @@ class IntakeAgent(Agent):
                 await store.close()
 
         # Step 2: Fetch structured kundali (Layer A)
+        await set_agent_stage(room, "fetching_kundali")
         logger.info("Fetching structured kundali...")
         kundali = await fetch_structured_kundali(
             birth.date_of_birth,
@@ -290,7 +374,11 @@ class IntakeAgent(Agent):
         self.session.userdata.kundali_json = kundali
         logger.info("Structured kundali fetched successfully")
 
+        # Send kundali summary to client
+        await _send_activity(room, _summarize_kundali(kundali))
+
         # Step 3: Generate Personality X-Ray (Layer B)
+        await set_agent_stage(room, "generating_xray")
         logger.info("Generating Personality X-Ray...")
         profiler = AstroProfiler()
         try:
@@ -313,6 +401,9 @@ class IntakeAgent(Agent):
         self.session.userdata.personality_xray = xray
         logger.info("Personality X-Ray generated successfully")
 
+        # Send X-Ray summary to client
+        await _send_activity(room, _summarize_xray(xray))
+
         # Persist kundali + X-Ray for returning users
         if user_id:
             try:
@@ -327,6 +418,7 @@ class IntakeAgent(Agent):
                 await store.close()
 
         # Step 4: Handoff to PsychologistAgent (Layer C)
+        await set_agent_stage(room, "ready")
         self.session.update_agent(PsychologistAgent(personality_xray=xray))
 
 
@@ -375,7 +467,10 @@ async def my_agent(ctx: JobContext):
     session = AgentSession[SessionState](
         userdata=SessionState(user_id=user_id),
         stt=deepgram.STT(model="nova-3", language="en"),
-        llm=google.LLM(model="gemini-2.5-flash"),
+        llm=google.LLM(
+            model="gemini-2.5-flash",
+            thinking_config={"thinking_budget": 1024},
+        ),
         tts=elevenlabs.TTS(model="eleven_flash_v2_5", voice_id="bvN2rlvpvH1mT3gPeNUl"),
         vad=ctx.proc.userdata["vad"],
         turn_detection=EnglishModel(),
@@ -398,6 +493,7 @@ async def my_agent(ctx: JobContext):
     if user_id:
         try:
             store = UserStore()
+            await set_agent_stage(ctx.room, "loading_profile")
             birth, kundali, xray = await store.load_user_data(user_id)
 
             if birth and kundali and xray:
@@ -405,16 +501,20 @@ async def my_agent(ctx: JobContext):
                 session.userdata.kundali_json = kundali
                 session.userdata.personality_xray = xray
                 logger.info(f"Full cache hit for user {user_id}")
+                await _send_activity(ctx.room, _summarize_kundali(kundali))
+                await _send_activity(ctx.room, _summarize_xray(xray))
                 agent = PsychologistAgent(personality_xray=xray, chat_ctx=initial_ctx)
             elif birth and kundali:
                 # Have kundali but X-Ray failed last time — regenerate
                 session.userdata.kundali_json = kundali
                 logger.info(f"Generating X-Ray from cached kundali for {user_id}")
+                await set_agent_stage(ctx.room, "generating_xray")
                 try:
                     profiler = AstroProfiler()
                     xray = await profiler.generate_xray(kundali)
                     session.userdata.personality_xray = xray
                     await store.save_user_data(user_id, personality_xray=xray)
+                    await _send_activity(ctx.room, _summarize_xray(xray))
                     agent = PsychologistAgent(
                         personality_xray=xray, chat_ctx=initial_ctx
                     )
@@ -424,6 +524,7 @@ async def my_agent(ctx: JobContext):
             elif birth:
                 # Have birth details but kundali missing — fetch + generate
                 logger.info(f"Fetching kundali from cached birth for {user_id}")
+                await set_agent_stage(ctx.room, "fetching_kundali")
                 kundali = await fetch_structured_kundali(
                     birth["date_of_birth"],
                     birth["time_of_birth"],
@@ -433,6 +534,7 @@ async def my_agent(ctx: JobContext):
                 )
                 if kundali:
                     session.userdata.kundali_json = kundali
+                    await set_agent_stage(ctx.room, "generating_xray")
                     try:
                         profiler = AstroProfiler()
                         xray = await profiler.generate_xray(kundali)
@@ -442,6 +544,7 @@ async def my_agent(ctx: JobContext):
                             kundali_json=kundali,
                             personality_xray=xray,
                         )
+                        await _send_activity(ctx.room, _summarize_xray(xray))
                         agent = PsychologistAgent(
                             personality_xray=xray, chat_ctx=initial_ctx
                         )
@@ -469,6 +572,7 @@ async def my_agent(ctx: JobContext):
     else:
         agent = IntakeAgent(chat_ctx=initial_ctx)
 
+    await set_agent_stage(ctx.room, "ready")
     await session.start(
         agent=agent,
         room=ctx.room,
