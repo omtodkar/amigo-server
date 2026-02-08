@@ -1,4 +1,4 @@
-"""Psychologist Agent (Layer C) — Dr. Nova, clinical psychologist persona."""
+"""Psychologist Agent (Layer C) — Amigo, clinical psychologist persona."""
 
 import contextlib
 import json
@@ -227,14 +227,19 @@ class PsychologistAgent(Agent):
         """Update your understanding of the client when the conversation
         shifts to a specific life area like Career, Love, or Trauma.
 
-        Call this when you notice the client is focusing on a particular
-        life domain and you want deeper insight into their patterns
-        within that area.
+        Call this ONLY when the conversation has clearly shifted to a
+        DIFFERENT life area than the current focus. Never call if already
+        on that topic. Call at most once per topic shift.
 
         Args:
             new_focus_topic: The life area to focus on (Career, Love, Trauma, or General)
         """
         state = context.userdata
+
+        if new_focus_topic == state.current_focus_topic:
+            return (
+                f"Already focused on {new_focus_topic}. Continue with current insights."
+            )
 
         if not state.kundali_json:
             logger.warning("Cannot update X-Ray: no kundali data available")

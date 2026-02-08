@@ -464,6 +464,18 @@ async def my_agent(ctx: JobContext):
         except json.JSONDecodeError:
             logger.warning("Failed to parse participant metadata as JSON")
 
+    tts_provider = os.getenv("TTS_PROVIDER", "elevenlabs")
+    if tts_provider == "google":
+        tts = google.TTS(
+            model_name="gemini-2.5-flash-tts",
+            voice_name="Kore",
+            speaking_rate=0.95,
+        )
+        logger.info("Using Google Gemini TTS")
+    else:
+        tts = elevenlabs.TTS(model="eleven_flash_v2_5", voice_id="ePiPWpzcHZrcqRzFrgQg")
+        logger.info("Using ElevenLabs TTS")
+
     session = AgentSession[SessionState](
         userdata=SessionState(user_id=user_id),
         stt=deepgram.STT(model="nova-3", language="en"),
@@ -471,7 +483,7 @@ async def my_agent(ctx: JobContext):
             model="gemini-2.5-flash",
             thinking_config={"thinking_budget": 1024},
         ),
-        tts=elevenlabs.TTS(model="eleven_flash_v2_5", voice_id="bvN2rlvpvH1mT3gPeNUl"),
+        tts=tts,
         vad=ctx.proc.userdata["vad"],
         turn_detection=EnglishModel(),
         preemptive_generation=True,
