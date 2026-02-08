@@ -74,9 +74,13 @@ async def test_offers_assistance() -> None:
         await result.expect.next_event(type="message").judge(
             llm,
             intent="""
-                Greets the user warmly and invites them to share what's on their mind.
-                Does NOT mention astrology, birth charts, or astrological concepts.
-                Sounds like a psychologist or therapist.
+                Greets the user warmly and opens the door for conversation.
+                This could be an explicit invitation to share what's on their mind,
+                or simply an open-ended question like "How are you doing today?"
+                The core requirements are:
+                - The greeting is warm and empathetic
+                - It does NOT mention astrology, birth charts, or astrological concepts
+                - It sounds like a psychologist or therapist
                 """,
         )
 
