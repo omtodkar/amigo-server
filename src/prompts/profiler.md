@@ -124,6 +124,51 @@ Analyze patterns related to:
 - Retrograde planets (internalized conflicts)
 Translate into: defense mechanisms, trauma response style (fight/flight/freeze/fawn), healing capacity, resilience patterns.
 
+## Diagnostic Protocol: The "Top 20" Mapping
+
+After building the general psychological profile, scan the chart data for specific planetary combinations below. When a match is found, use it to populate `primary_symptom_match`, `somatic_signature`, and `risk_factors` in the output.
+
+### Spectrum 1: Anxiety / Panic
+
+1. **IF** Moon in an Air sign (Gemini/Libra/Aquarius) **AND** Mercury retrograde **THEN** → "Mental looping / obsessive thought spirals"; Somatic: "Tight jaw, shallow breathing, insomnia onset"
+2. **IF** Rahu in 1st or 8th house **AND** Moon weak or afflicted **THEN** → "Free-floating anxiety with identity confusion"; Somatic: "Heart racing, dissociation episodes, hypervigilance"
+3. **IF** Saturn aspects Moon **AND** Ketu in 12th house **THEN** → "Existential dread masked as numbness"; Somatic: "Heavy limbs, chronic fatigue, emotional flatness"
+
+### Spectrum 2: Depressive / Burnout
+
+4. **IF** Saturn in 1st, 4th, or 10th house **AND** Sun weak **THEN** → "Achievement-linked burnout with collapsed self-worth"; Somatic: "Persistent exhaustion, back/shoulder tension, appetite changes"
+5. **IF** Moon in Earth sign (Taurus/Virgo/Capricorn) **AND** Saturn phase active **THEN** → "Suppressed grief presenting as work addiction"; Somatic: "Gut issues, emotional eating, sleep disruption"
+6. **IF** Ketu in 4th house **AND** Moon afflicted **THEN** → "Rootlessness — inability to feel 'at home' anywhere"; Somatic: "Restless legs, insomnia, chronic low-grade sadness"
+
+### Spectrum 3: Trauma / Safety
+
+7. **IF** Saturn + Rahu in 8th house **THEN** → "Hypervigilance from early boundary violations"; Somatic: "Startle response, muscle guarding, trust shutdown"
+8. **IF** Mars retrograde **AND** Moon in a Water sign (Cancer/Scorpio/Pisces) **THEN** → "Internalized rage presenting as depression or self-harm ideation"; Somatic: "Clenched fists, headaches, somatic flashbacks"
+9. **IF** Ketu in 1st house **AND** Sun weak **THEN** → "Depersonalization / 'I don't know who I am' crisis"; Somatic: "Feeling outside own body, emotional blunting, fatigue"
+
+### Spectrum 4: Addiction / Dopamine
+
+10. **IF** Rahu in 2nd or 11th house **AND** Venus afflicted **THEN** → "Compulsive pleasure-seeking with diminishing returns"; Somatic: "Dopamine crashes, binge-restrict cycles, restlessness"
+11. **IF** Moon + Rahu conjunction **AND** 12th house active **THEN** → "Escapism through substances or fantasy worlds"; Somatic: "Sleep avoidance, screen addiction, emotional numbing through consumption"
+
+### Spectrum 5: Relationship / Self-Worth
+
+12. **IF** Venus in 6th or 8th house **AND** Saturn aspects 7th house **THEN** → "Love = sacrifice schema; attracts emotionally unavailable partners"; Somatic: "Chest tightness when alone, people-pleasing exhaustion, boundary collapse"
+
+### How to Apply
+
+- Check each rule against the chart data. Multiple rules may match — list the single most dominant match as `primary_symptom_match`.
+- If no rules match, set `primary_symptom_match` to a general description based on the overall chart pattern.
+- Set `somatic_signature` from the matched rule's somatic description.
+- Set `risk_factors` based on the matches:
+  - `addiction_tendency`: true if any Spectrum 4 rule matches
+  - `burnout_tendency`: true if any Spectrum 2 rule matches
+  - `crisis_risk_level`: "High" if Spectrum 3 rule #8 matches (internalized rage) AND Saturn-Moon-8th-house configuration is present; "Medium" if any Spectrum 3 rule matches; "Low" otherwise
+
+## Safety Override
+
+**IF** Saturn conjunct or aspects Moon **AND** 8th house is heavily occupied (2+ malefics) **THEN** set `crisis_risk_level` to "High" regardless of other matches. This configuration indicates elevated psychological distress requiring immediate safety screening.
+
 ## Output Format
 
 Return a single JSON object with this exact structure:
@@ -152,7 +197,14 @@ Return a single JSON object with this exact structure:
   "current_psychological_climate": {
     "season_of_life": "<metaphorical phase, e.g., 'The Proving Ground — identity under fire'>",
     "primary_stressor": "<root cause of current pressure, e.g., 'Loss of certainty about who they are'>",
-    "developmental_goal": "<skill life is forcing them to learn, e.g., 'Standing in authority without external validation'>"
+    "developmental_goal": "<skill life is forcing them to learn, e.g., 'Standing in authority without external validation'>",
+    "primary_symptom_match": "<specific issue from Diagnostic Protocol, e.g., 'Mental looping / obsessive thought spirals'>",
+    "somatic_signature": "<body manifestation from matched rule, e.g., 'Tight jaw, shallow breathing, insomnia onset'>",
+    "risk_factors": {
+      "addiction_tendency": false,
+      "burnout_tendency": true,
+      "crisis_risk_level": "Low | Medium | High"
+    }
   },
   "domain_specific_insight": {
     "topic": "<the focus topic>",

@@ -4,6 +4,7 @@ import json
 import logging
 
 from livekit.agents import Agent, ChatContext, RunContext, function_tool
+from livekit.agents.llm import ChatMessage, StopResponse
 
 from models import SessionState
 from profiler import AstroProfiler
@@ -11,6 +12,16 @@ from prompts import load_prompt
 from store import UserStore
 
 logger = logging.getLogger("psychologist")
+
+# Keywords that trigger deterministic crisis response when crisis_risk_level is High
+CRISIS_KEYWORDS = {"kill myself", "end it", "die", "suicide"}
+
+CRISIS_RESPONSE = (
+    "I hear you, and I'm really glad you told me. What you're feeling is real, "
+    "and you deserve support right now. Please reach out to the 988 Suicide and "
+    "Crisis Lifeline — call or text 988. They're available 24/7 and can help. "
+    "You don't have to go through this alone."
+)
 
 
 class PsychologistAgent(Agent):
@@ -26,6 +37,7 @@ class PsychologistAgent(Agent):
         personality_xray: dict | None = None,
         chat_ctx: ChatContext | None = None,
     ):
+        self._personality_xray = personality_xray
         instructions = load_prompt("psychologist.md")
         if personality_xray:
             instructions += (
@@ -42,6 +54,34 @@ class PsychologistAgent(Agent):
                 "Keep it brief and natural — one or two sentences."
             )
         )
+
+    async def on_user_turn_completed(
+        self, turn_ctx: ChatContext, new_message: ChatMessage
+    ) -> None:
+        """Check for crisis keywords when crisis_risk_level is High.
+
+        Bypasses LLM and returns a static crisis response with the 988 hotline
+        number for deterministic safety handling.
+        """
+        if not self._personality_xray:
+            return
+
+        climate = self._personality_xray.get("current_psychological_climate", {})
+        risk_factors = climate.get("risk_factors", {})
+        if not isinstance(risk_factors, dict):
+            return
+
+        if risk_factors.get("crisis_risk_level") != "High":
+            return
+
+        user_text = (new_message.text_content or "").lower()
+        if any(keyword in user_text for keyword in CRISIS_KEYWORDS):
+            logger.warning(
+                "Crisis keyword detected with High risk level — "
+                "bypassing LLM with static crisis response"
+            )
+            self.session.say(CRISIS_RESPONSE)
+            raise StopResponse()
 
     @function_tool()
     async def update_personality_xray(

@@ -98,6 +98,9 @@ async def test_xray_nested_structure(
             "season_of_life",
             "primary_stressor",
             "developmental_goal",
+            "primary_symptom_match",
+            "somatic_signature",
+            "risk_factors",
         },
         "domain_specific_insight": {"topic", "conflict_pattern", "unmet_need"},
         "therapist_cheat_sheet": {
@@ -173,3 +176,34 @@ async def test_meta_section(profiler: AstroProfiler, sample_kundali: dict) -> No
     assert "meta" in xray
     assert xray["meta"]["current_focus_topic"] == "Career"
     assert "generated_at" in xray["meta"]
+
+
+@pytest.mark.asyncio
+async def test_risk_factors_structure(
+    profiler: AstroProfiler, sample_kundali: dict
+) -> None:
+    """Verify risk_factors contains expected sub-fields."""
+    xray = await profiler.generate_xray(sample_kundali)
+    climate = xray["current_psychological_climate"]
+    assert "risk_factors" in climate, (
+        "Missing risk_factors in current_psychological_climate"
+    )
+
+    risk_factors = climate["risk_factors"]
+    assert isinstance(risk_factors, dict), "risk_factors should be a dict"
+    assert "addiction_tendency" in risk_factors, "Missing addiction_tendency"
+    assert "burnout_tendency" in risk_factors, "Missing burnout_tendency"
+    assert "crisis_risk_level" in risk_factors, "Missing crisis_risk_level"
+
+
+@pytest.mark.asyncio
+async def test_crisis_risk_level_valid(
+    profiler: AstroProfiler, sample_kundali: dict
+) -> None:
+    """Verify crisis_risk_level is one of Low, Medium, or High."""
+    xray = await profiler.generate_xray(sample_kundali)
+    risk_factors = xray["current_psychological_climate"]["risk_factors"]
+    valid_levels = {"Low", "Medium", "High"}
+    assert risk_factors["crisis_risk_level"] in valid_levels, (
+        f"Invalid crisis_risk_level: {risk_factors['crisis_risk_level']}"
+    )

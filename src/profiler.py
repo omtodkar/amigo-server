@@ -95,4 +95,27 @@ class AstroProfiler:
             logger.error("Profiler output missing keys: %s", missing_keys)
             raise ValueError(f"Profiler output missing required keys: {missing_keys}")
 
+        # Validate new diagnostic fields (warn, don't fail — graceful degradation)
+        climate = xray.get("current_psychological_climate", {})
+        for field in ("primary_symptom_match", "somatic_signature", "risk_factors"):
+            if field not in climate:
+                logger.warning(
+                    "Profiler output missing diagnostic field: "
+                    "current_psychological_climate.%s",
+                    field,
+                )
+
+        risk_factors = climate.get("risk_factors")
+        if isinstance(risk_factors, dict):
+            level = risk_factors.get("crisis_risk_level")
+            if level not in ("Low", "Medium", "High"):
+                logger.warning(
+                    "Invalid crisis_risk_level '%s'; expected Low, Medium, or High",
+                    level,
+                )
+        elif risk_factors is not None:
+            logger.warning(
+                "risk_factors should be a dict, got %s", type(risk_factors).__name__
+            )
+
         return xray
