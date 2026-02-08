@@ -1,0 +1,539 @@
+{
+    "ascendant": "Leo",
+    "Varna": "Vaishya",
+    "Vashya": "Maanav",
+    "Yoni": "Gau",
+    "Gan": "Manushya",
+    "Nadi": "Adi",
+    "SignLord": "Mercury",
+    "sign": "Virgo",
+    "Naksahtra": "Uttra Phalguni",
+    "NaksahtraLord": "Sun",
+    "Charan": 3,
+    "Yog": "Vaidhriti",
+    "Karan": "Kaulav",
+    "Tithi": "Krishna Dwadashi",
+    "yunja": "Madhya",
+    "tatva": "Earth",
+    "name_alphabet": "Pa",
+    "paya": "Silver",
+    "planets": [
+        {
+            "id": 0,
+            "name": "SUN",
+            "fullDegree": 72.18954079246434,
+            "normDegree": 12.189540792464342,
+            "speed": 0.9537797443255392,
+            "isRetro": "false",
+            "sign": "Gemini",
+            "signLord": "Mercury",
+            "nakshatra": "Ardra",
+            "nakshatraLord": "Rahu",
+            "nakshatra_pad": 2,
+            "house": 9,
+            "is_planet_set": false,
+            "planet_awastha": "Yuva"
+        },
+        {
+            "id": 1,
+            "name": "MOON",
+            "fullDegree": 11.72351598586304,
+            "normDegree": 11.72351598586304,
+            "speed": 13.920316198066743,
+            "isRetro": "false",
+            "sign": "Aries",
+            "signLord": "Mars",
+            "nakshatra": "Ashwini",
+            "nakshatraLord": "Ketu",
+            "nakshatra_pad": 4,
+            "house": 7,
+            "is_planet_set": false,
+            "planet_awastha": "Kumara"
+        },
+        {
+            "id": 2,
+            "name": "MARS",
+            "fullDegree": 73.41992352157277,
+            "normDegree": 13.41992352157277,
+            "speed": 0.6649777633290916,
+            "isRetro": "false",
+            "sign": "Gemini",
+            "signLord": "Mercury",
+            "nakshatra": "Ardra",
+            "nakshatraLord": "Rahu",
+            "nakshatra_pad": 3,
+            "house": 9,
+            "is_planet_set": true,
+            "planet_awastha": "Yuva"
+        },
+        {
+            "id": 3,
+            "name": "MERCURY",
+            "fullDegree": 85.49171301406825,
+            "normDegree": 25.491713014068253,
+            "speed": -0.29467903633858694,
+            "isRetro": "true",
+            "sign": "Gemini",
+            "signLord": "Mercury",
+            "nakshatra": "Punarvasu",
+            "nakshatraLord": "Jupiter",
+            "nakshatra_pad": 2,
+            "house": 9,
+            "is_planet_set": false,
+            "planet_awastha": "Mrit"
+        },
+        {
+            "id": 4,
+            "name": "JUPITER",
+            "fullDegree": 35.53009646668099,
+            "normDegree": 5.5300964666809875,
+            "speed": 0.2119922731034037,
+            "isRetro": "false",
+            "sign": "Taurus",
+            "signLord": "Venus",
+            "nakshatra": "Krittika",
+            "nakshatraLord": "Sun",
+            "nakshatra_pad": 3,
+            "house": 8,
+            "is_planet_set": false,
+            "planet_awastha": "Mrit"
+        },
+        {
+            "id": 5,
+            "name": "VENUS",
+            "fullDegree": 76.57181911264793,
+            "normDegree": 16.57181911264793,
+            "speed": 1.2289765385390012,
+            "isRetro": "false",
+            "sign": "Gemini",
+            "signLord": "Mercury",
+            "nakshatra": "Ardra",
+            "nakshatraLord": "Rahu",
+            "nakshatra_pad": 3,
+            "house": 9,
+            "is_planet_set": true,
+            "planet_awastha": "Yuva"
+        },
+        {
+            "id": 6,
+            "name": "SATURN",
+            "fullDegree": 32.39707346334402,
+            "normDegree": 2.3970734633440216,
+            "speed": 0.10910000257030411,
+            "isRetro": "false",
+            "sign": "Taurus",
+            "signLord": "Venus",
+            "nakshatra": "Krittika",
+            "nakshatraLord": "Sun",
+            "nakshatra_pad": 2,
+            "house": 8,
+            "is_planet_set": false,
+            "planet_awastha": "Mrit"
+        },
+        {
+            "id": 7,
+            "name": "RAHU",
+            "fullDegree": 91.7592615626992,
+            "normDegree": 1.7592615626991943,
+            "speed": -0.05299201968813196,
+            "isRetro": "true",
+            "sign": "Cancer",
+            "signLord": "Moon",
+            "nakshatra": "Punarvasu",
+            "nakshatraLord": "Jupiter",
+            "nakshatra_pad": 4,
+            "house": 10,
+            "is_planet_set": false,
+            "planet_awastha": "Mrit"
+        },
+        {
+            "id": 8,
+            "name": "KETU",
+            "fullDegree": 271.7592615626992,
+            "normDegree": 1.75926156269918,
+            "speed": -0.05299201968813196,
+            "isRetro": "true",
+            "sign": "Capricorn",
+            "signLord": "Saturn",
+            "nakshatra": "Uttra Shadha",
+            "nakshatraLord": "Sun",
+            "nakshatra_pad": 2,
+            "house": 4,
+            "is_planet_set": false,
+            "planet_awastha": "Mrit"
+        },
+        {
+            "id": 9,
+            "name": "URANUS",
+            "fullDegree": 296.5396144336108,
+            "normDegree": 26.53961443361078,
+            "speed": -0.02471042169971973,
+            "isRetro": "true",
+            "sign": "Capricorn",
+            "signLord": "Saturn",
+            "nakshatra": "Dhanishtha",
+            "nakshatraLord": "Mars",
+            "nakshatra_pad": 1,
+            "house": 4,
+            "is_planet_set": false,
+            "planet_awastha": "Bala"
+        },
+        {
+            "id": 10,
+            "name": "NEPTUNE",
+            "fullDegree": 282.09966221131185,
+            "normDegree": 12.099662211311852,
+            "speed": -0.0225324059894896,
+            "isRetro": "true",
+            "sign": "Capricorn",
+            "signLord": "Saturn",
+            "nakshatra": "Shravan",
+            "nakshatraLord": "Moon",
+            "nakshatra_pad": 1,
+            "house": 4,
+            "is_planet_set": false,
+            "planet_awastha": "Yuva"
+        },
+        {
+            "id": 11,
+            "name": "PLUTO",
+            "fullDegree": 227.01407818616372,
+            "normDegree": 17.014078186163715,
+            "speed": -0.023843037125776526,
+            "isRetro": "true",
+            "sign": "Scorpio",
+            "signLord": "Mars",
+            "nakshatra": "Jyeshtha",
+            "nakshatraLord": "Mercury",
+            "nakshatra_pad": 1,
+            "house": 2,
+            "is_planet_set": false,
+            "planet_awastha": "Yuva"
+        },
+        {
+            "id": 12,
+            "name": "Ascendant",
+            "fullDegree": 207.92868587120444,
+            "normDegree": 27.928685871204436,
+            "speed": 0,
+            "isRetro": false,
+            "sign": "Libra",
+            "signLord": "Venus",
+            "nakshatra": "Vishakha",
+            "nakshatraLord": "Jupiter",
+            "nakshatra_pad": 3,
+            "house": 1
+        }
+    ],
+    "dasha": {
+        "major": {
+            "dasha_period": [
+                {
+                    "planet": "Ketu",
+                    "planet_id": 8,
+                    "start": "2-5-1994  14:7",
+                    "end": "2-5-2001  8:7"
+                },
+                {
+                    "planet": "Venus",
+                    "planet_id": 5,
+                    "start": "2-5-2001  8:7",
+                    "end": "2-5-2021  8:7"
+                },
+                {
+                    "planet": "Sun",
+                    "planet_id": 0,
+                    "start": "2-5-2021  8:7",
+                    "end": "2-5-2027  20:7"
+                },
+                {
+                    "planet": "Moon",
+                    "planet_id": 1,
+                    "start": "2-5-2027  20:7",
+                    "end": "2-5-2037  8:7"
+                },
+                {
+                    "planet": "Mars",
+                    "planet_id": 2,
+                    "start": "2-5-2037  8:7",
+                    "end": "2-5-2044  2:7"
+                },
+                {
+                    "planet": "Rahu",
+                    "planet_id": 7,
+                    "start": "2-5-2044  2:7",
+                    "end": "2-5-2062  14:7"
+                },
+                {
+                    "planet": "Jupiter",
+                    "planet_id": 4,
+                    "start": "2-5-2062  14:7",
+                    "end": "2-5-2078  14:7"
+                },
+                {
+                    "planet": "Saturn",
+                    "planet_id": 6,
+                    "start": "2-5-2078  14:7",
+                    "end": "2-5-2097  8:7"
+                },
+                {
+                    "planet": "Mercury",
+                    "planet_id": 3,
+                    "start": "2-5-2097  8:7",
+                    "end": "3-5-2114  14:7"
+                }
+            ]
+        },
+        "minor": {
+            "planet": {
+                "major": "Sun"
+            },
+            "dasha_period": [
+                {
+                    "planet": "Sun",
+                    "planet_id": 0,
+                    "start": "2-5-2021  8:7",
+                    "end": "19-8-2021  21:55"
+                },
+                {
+                    "planet": "Moon",
+                    "planet_id": 1,
+                    "start": "19-8-2021  21:55",
+                    "end": "18-2-2022  12:55"
+                },
+                {
+                    "planet": "Mars",
+                    "planet_id": 2,
+                    "start": "18-2-2022  12:55",
+                    "end": "26-6-2022  9:1"
+                },
+                {
+                    "planet": "Rahu",
+                    "planet_id": 7,
+                    "start": "26-6-2022  9:1",
+                    "end": "21-5-2023  2:25"
+                },
+                {
+                    "planet": "Jupiter",
+                    "planet_id": 4,
+                    "start": "21-5-2023  2:25",
+                    "end": "8-3-2024  7:13"
+                },
+                {
+                    "planet": "Saturn",
+                    "planet_id": 6,
+                    "start": "8-3-2024  7:13",
+                    "end": "18-2-2025  6:55"
+                },
+                {
+                    "planet": "Mercury",
+                    "planet_id": 3,
+                    "start": "18-2-2025  6:55",
+                    "end": "25-12-2025  18:1"
+                },
+                {
+                    "planet": "Ketu",
+                    "planet_id": 8,
+                    "start": "25-12-2025  18:1",
+                    "end": "2-5-2026  14:7"
+                },
+                {
+                    "planet": "Venus",
+                    "planet_id": 5,
+                    "start": "2-5-2026  14:7",
+                    "end": "2-5-2027  20:7"
+                }
+            ]
+        },
+        "sub_minor": {
+            "planet": {
+                "major": "Sun",
+                "minor": "Saturn"
+            },
+            "dasha_period": [
+                {
+                    "planet": "Saturn",
+                    "planet_id": 6,
+                    "start": "8-3-2024  7:13",
+                    "end": "2-5-2024  5:46"
+                },
+                {
+                    "planet": "Mercury",
+                    "planet_id": 3,
+                    "start": "2-5-2024  5:46",
+                    "end": "20-6-2024  9:31"
+                },
+                {
+                    "planet": "Ketu",
+                    "planet_id": 8,
+                    "start": "20-6-2024  9:31",
+                    "end": "10-7-2024  15:18"
+                },
+                {
+                    "planet": "Venus",
+                    "planet_id": 5,
+                    "start": "10-7-2024  15:18",
+                    "end": "6-9-2024  11:15"
+                },
+                {
+                    "planet": "Sun",
+                    "planet_id": 0,
+                    "start": "6-9-2024  11:15",
+                    "end": "23-9-2024  19:38"
+                },
+                {
+                    "planet": "Moon",
+                    "planet_id": 1,
+                    "start": "23-9-2024  19:38",
+                    "end": "22-10-2024  17:37"
+                },
+                {
+                    "planet": "Mars",
+                    "planet_id": 2,
+                    "start": "22-10-2024  17:37",
+                    "end": "11-11-2024  23:24"
+                },
+                {
+                    "planet": "Rahu",
+                    "planet_id": 7,
+                    "start": "11-11-2024  23:24",
+                    "end": "3-1-2025  0:33"
+                },
+                {
+                    "planet": "Jupiter",
+                    "planet_id": 4,
+                    "start": "3-1-2025  0:33",
+                    "end": "18-2-2025  6:55"
+                }
+            ]
+        },
+        "sub_sub_minor": {
+            "planet": {
+                "major": "Sun",
+                "minor": "Saturn",
+                "sub_minor": "Saturn"
+            },
+            "dasha_period": [
+                {
+                    "planet": "Saturn",
+                    "planet_id": 6,
+                    "start": "8-3-2024  7:13",
+                    "end": "16-3-2024  23:59"
+                },
+                {
+                    "planet": "Mercury",
+                    "planet_id": 3,
+                    "start": "16-3-2024  23:59",
+                    "end": "24-3-2024  18:47"
+                },
+                {
+                    "planet": "Ketu",
+                    "planet_id": 8,
+                    "start": "24-3-2024  18:47",
+                    "end": "27-3-2024  23:42"
+                },
+                {
+                    "planet": "Venus",
+                    "planet_id": 5,
+                    "start": "27-3-2024  23:42",
+                    "end": "6-4-2024  3:27"
+                },
+                {
+                    "planet": "Sun",
+                    "planet_id": 0,
+                    "start": "6-4-2024  3:27",
+                    "end": "8-4-2024  21:23"
+                },
+                {
+                    "planet": "Moon",
+                    "planet_id": 1,
+                    "start": "8-4-2024  21:23",
+                    "end": "13-4-2024  11:16"
+                },
+                {
+                    "planet": "Mars",
+                    "planet_id": 2,
+                    "start": "13-4-2024  11:16",
+                    "end": "16-4-2024  16:11"
+                },
+                {
+                    "planet": "Rahu",
+                    "planet_id": 7,
+                    "start": "16-4-2024  16:11",
+                    "end": "24-4-2024  21:57"
+                },
+                {
+                    "planet": "Jupiter",
+                    "planet_id": 4,
+                    "start": "24-4-2024  21:57",
+                    "end": "2-5-2024  5:46"
+                }
+            ]
+        },
+        "sub_sub_sub_minor": {
+            "planet": {
+                "major": "Sun",
+                "minor": "Saturn",
+                "sub_minor": "Saturn",
+                "sub_sub_minor": "Mercury"
+            },
+            "dasha_period": [
+                {
+                    "planet": "Mercury",
+                    "planet_id": 3,
+                    "start": "16-3-2024  23:59",
+                    "end": "18-3-2024  2:27"
+                },
+                {
+                    "planet": "Ketu",
+                    "planet_id": 8,
+                    "start": "18-3-2024  2:27",
+                    "end": "18-3-2024  13:21"
+                },
+                {
+                    "planet": "Venus",
+                    "planet_id": 5,
+                    "start": "18-3-2024  13:21",
+                    "end": "19-3-2024  20:28"
+                },
+                {
+                    "planet": "Sun",
+                    "planet_id": 0,
+                    "start": "19-3-2024  20:28",
+                    "end": "20-3-2024  5:49"
+                },
+                {
+                    "planet": "Moon",
+                    "planet_id": 1,
+                    "start": "20-3-2024  5:49",
+                    "end": "20-3-2024  21:23"
+                },
+                {
+                    "planet": "Mars",
+                    "planet_id": 2,
+                    "start": "20-3-2024  21:23",
+                    "end": "21-3-2024  8:17"
+                },
+                {
+                    "planet": "Rahu",
+                    "planet_id": 7,
+                    "start": "21-3-2024  8:17",
+                    "end": "22-3-2024  12:18"
+                },
+                {
+                    "planet": "Jupiter",
+                    "planet_id": 4,
+                    "start": "22-3-2024  12:18",
+                    "end": "23-3-2024  13:12"
+                },
+                {
+                    "planet": "Saturn",
+                    "planet_id": 6,
+                    "start": "23-3-2024  13:12",
+                    "end": "24-3-2024  18:47"
+                }
+            ]
+        }
+    },
+    "ascendant_report": "People with Aquarius rising tend to be altruistic, friendly, yet detached, impersonal, humanitarian, sociable, intellectual, freedom-loving, rebellious, independent, and unusual. You are here to learn altruism, brotherhood, and working for the common good, to forget yourself and your needs for the sake of your friends, who can also be strangers. You have new and different ways of looking at things. You can be very original and inventive, perhaps eccentric or bohemian. You are prone to uncertain and sudden impulses. You tend to be very intuitive, possessing a good mind. You have organizing ability and are capable and practical. You are intelligent, but sometimes cold and calculating where feelings are concerned. There is a certain detachment about you. You cannot stand possessiveness and jealousy and you require plenty of freedom. Depending on the relative strengths of Saturn and Uranus in your chart, caution, coldness and selfishness may be exhibited (Saturn stronger) or there will be more altruism, freedom and free-flowingness (Uranus stronger). If Uranus is stronger, then the things of the spirit will be stronger than materialistic worldliness. Spiritual lesson to learn: Warmth (less head and more heart). Saturn and Uranus both rule Aquarius so Saturn and Uranus will be important in your chart."
+}

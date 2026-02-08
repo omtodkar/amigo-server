@@ -219,6 +219,122 @@ def _format_kundali(astro: dict, planets: list[dict], dasha: dict | None = None)
     return "\n".join(lines)
 
 
+async def _fetch_planets_extended(
+    client: httpx.AsyncClient, params: dict, auth_header: str
+) -> list[dict]:
+    """Fetch extended planet positions from the API."""
+    try:
+        response = await client.post(
+            f"{ASTROLOGY_API_BASE_URL}/planets/extended",
+            json=params,
+            headers={"Authorization": auth_header, "Content-Type": "application/json"},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json()  # Returns list of planet dicts directly
+    except Exception as e:
+        logger.error(f"Failed to fetch extended planets: {e}")
+        return []
+
+
+async def _fetch_full_vdasha(
+    client: httpx.AsyncClient, params: dict, auth_header: str
+) -> dict | None:
+    """Fetch current Vimshottari Dasha periods from the API.
+
+    Returns a dict with keys: major, minor, sub_minor, sub_sub_minor,
+    sub_sub_sub_minor. Each value is a single dict with planet, planet_id,
+    start, and end fields.
+    """
+    try:
+        response = await client.post(
+            f"{ASTROLOGY_API_BASE_URL}/current_vdasha",
+            json=params,
+            headers={"Authorization": auth_header, "Content-Type": "application/json"},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch full vdasha: {e}")
+        return None
+
+
+async def _fetch_general_ascendant_report(
+    client: httpx.AsyncClient, params: dict, auth_header: str
+) -> str | None:
+    """Fetch general ascendant report from the API."""
+    try:
+        response = await client.post(
+            f"{ASTROLOGY_API_BASE_URL}/general_ascendant_report",
+            json=params,
+            headers={"Authorization": auth_header, "Content-Type": "application/json"},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        asc_report = data.get("asc_report", {})
+        if isinstance(asc_report, dict):
+            return asc_report.get("report", "")
+        return str(asc_report) if asc_report else ""
+    except Exception as e:
+        logger.error(f"Failed to fetch ascendant report: {e}")
+        return None
+
+
+async def fetch_structured_kundali(
+    date_of_birth: str,
+    time_of_birth: str,
+    latitude: float,
+    longitude: float,
+    timezone: float,
+) -> dict | None:
+    """Fetch structured kundali JSON with extended data from all endpoints.
+
+    Args:
+        date_of_birth: Date of birth string (e.g., "March 15, 1990")
+        time_of_birth: Time of birth string (e.g., "3:30 PM", "morning")
+        latitude: Latitude of birth location
+        longitude: Longitude of birth location
+        timezone: Timezone offset in hours from UTC
+
+    Returns:
+        Structured kundali dict, or None if failed.
+    """
+    auth_header = _get_auth_header()
+    params = _parse_birth_params(
+        date_of_birth, time_of_birth, latitude, longitude, timezone
+    )
+    if not params:
+        return None
+
+    async with httpx.AsyncClient() as client:
+        # Fetch all 4 endpoints in parallel
+        (
+            astro_result,
+            planets_result,
+            dasha_result,
+            ascendant_result,
+        ) = await asyncio.gather(
+            _fetch_astro_details(client, params, auth_header),
+            _fetch_planets_extended(client, params, auth_header),
+            _fetch_full_vdasha(client, params, auth_header),
+            _fetch_general_ascendant_report(client, params, auth_header),
+        )
+
+        if not astro_result:
+            logger.error("Failed to fetch astro details for structured kundali")
+            return None
+
+        # Assemble structured output
+        return {
+            **astro_result,  # Top-level astro fields (ascendant, Varna, etc.)
+            "planets": planets_result,
+            "dasha": dasha_result or {},
+            "ascendant_report": ascendant_result or "",
+        }
+
+
 async def fetch_kundali(
     date_of_birth: str,
     time_of_birth: str,

@@ -1,13 +1,28 @@
 import json
 import logging
 import os
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
+
+load_dotenv(".env.local")
+
+# Ensure Google API key auth is used, not Vertex AI credentials from shell env.
+# Must run before importing google.genai (via livekit.plugins.google).
+for var in (
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_LOCATION",
+    "GOOGLE_GENAI_USE_VERTEXAI",
+):
+    os.environ.pop(var, None)
+
 from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    AgentTask,
     APIConnectOptions,
     ChatContext,
     JobContext,
@@ -19,29 +34,68 @@ from livekit.agents import (
     room_io,
 )
 from livekit.agents.voice.agent_session import SessionConnectOptions
-from livekit.plugins import deepgram, elevenlabs, google, noise_cancellation, silero
+from livekit.plugins import (
+    deepgram,
+    elevenlabs,
+    google,
+    noise_cancellation,
+    silero,
+)
 from livekit.plugins.turn_detector.english import EnglishModel
 
-from astrology import fetch_kundali
+from astrology import fetch_structured_kundali
 from geocoding import geocode_place, get_timezone_offset
 from models import SessionState
-from prompts import load_prompt
+from profiler import AstroProfiler
+from psychologist import PsychologistAgent
+from store import UserStore
 
 logger = logging.getLogger("agent")
 
-load_dotenv(".env.local")
+
+@dataclass
+class BirthDetailsResult:
+    """Result of the birth detail collection task."""
+
+    date_of_birth: str
+    time_of_birth: str
+    latitude: float
+    longitude: float
+    timezone: float
 
 
-class Assistant(Agent):
-    def __init__(
-        self, kundali: str | None = None, chat_ctx: ChatContext | None = None
-    ) -> None:
-        instructions = load_prompt("assistant.md")
-        if kundali:
-            instructions += "\n\n" + kundali
+class CollectBirthDetailsTask(AgentTask[BirthDetailsResult]):
+    """Task that collects the user's birth details for personalized guidance.
+
+    Collects date of birth, time of birth, and place of birth through
+    natural conversation. Geocodes the place and resolves timezone
+    automatically. Completes when all details are gathered.
+    """
+
+    def __init__(self, chat_ctx=None):
         super().__init__(
-            instructions=instructions,
+            instructions=(
+                "You are collecting the user's birth details for personalized guidance. "
+                "You need their date of birth, time of birth, and place of birth. "
+                "Be conversational and patient. Accept approximate times like 'morning' "
+                "or 'around noon'. If voice recognition is struggling with a place name, "
+                "use the request_text_input tool to ask the user to type it instead."
+            ),
             chat_ctx=chat_ctx,
+        )
+        self._date_of_birth: str | None = None
+        self._time_of_birth: str | None = None
+        self._latitude: float | None = None
+        self._longitude: float | None = None
+        self._timezone: float | None = None
+
+    async def on_enter(self) -> None:
+        await self.session.generate_reply(
+            instructions=(
+                "Ask the user for their birth details — date, time, and place of birth. "
+                "Be natural and conversational. You can ask for all three at once or "
+                "one at a time."
+            )
         )
 
     @function_tool()
@@ -52,10 +106,11 @@ class Assistant(Agent):
         time_of_birth: str | None = None,
         place_of_birth: str | None = None,
     ) -> str:
-        """Record the user's birth details for astrological reading.
+        """Record the user's birth details for personalized guidance.
 
         Call this tool when the user provides their birth information.
-        You can call this multiple times as the user provides each piece of information.
+        You can call this multiple times as the user provides each piece
+        of information.
 
         Args:
             date_of_birth: Date of birth (e.g., "March 15, 1990" or "1990-03-15")
@@ -64,62 +119,65 @@ class Assistant(Agent):
         """
         state = context.userdata
 
-        # Step 1: Record provided details
         if date_of_birth:
+            self._date_of_birth = date_of_birth
             state.date_of_birth = date_of_birth
             logger.info(f"Recorded date of birth: {date_of_birth}")
         if time_of_birth:
+            self._time_of_birth = time_of_birth
             state.time_of_birth = time_of_birth
             logger.info(f"Recorded time of birth: {time_of_birth}")
 
-        # Step 2: Geocode place -> lat/lon
         if place_of_birth:
             coords = await geocode_place(place_of_birth)
             if not coords:
                 logger.warning(f"Failed to geocode {place_of_birth}")
-                return f"Could not locate '{place_of_birth}'. Please clarify the city and country."
+                return (
+                    f"Could not locate '{place_of_birth}'. "
+                    "Please clarify the city and country."
+                )
+            self._latitude, self._longitude = coords
             state.latitude, state.longitude = coords
             logger.info(f"Geocoded {place_of_birth} to {coords}")
 
-        # Check what's still missing
         missing = []
-        if not state.date_of_birth:
+        if not self._date_of_birth:
             missing.append("date of birth")
-        if not state.time_of_birth:
+        if not self._time_of_birth:
             missing.append("time of birth")
-        if state.latitude is None:
+        if self._latitude is None:
             missing.append("place of birth")
 
         if missing:
             return f"Recorded. Still need: {', '.join(missing)}"
 
-        # Step 3: Fetch timezone (requires lat/lon + date/time)
         timezone = await get_timezone_offset(
-            state.latitude, state.longitude, state.date_of_birth, state.time_of_birth
+            self._latitude,
+            self._longitude,
+            self._date_of_birth,
+            self._time_of_birth,
         )
         if timezone is None:
             logger.warning("Failed to fetch timezone")
-            return "Could not determine timezone for the birth location. Please verify the place."
+            return (
+                "Could not determine timezone for the birth location. "
+                "Please verify the place."
+            )
+        self._timezone = timezone
         state.timezone = timezone
         logger.info(f"Fetched timezone: {timezone}")
 
-        # Step 4: Fetch kundali (requires all details + timezone)
-        logger.info("All birth details collected, fetching kundali...")
-        kundali = await fetch_kundali(
-            state.date_of_birth,
-            state.time_of_birth,
-            state.latitude,
-            state.longitude,
-            state.timezone,
+        logger.info("All birth details collected")
+        self.complete(
+            BirthDetailsResult(
+                date_of_birth=self._date_of_birth,
+                time_of_birth=self._time_of_birth,
+                latitude=self._latitude,
+                longitude=self._longitude,
+                timezone=self._timezone,
+            )
         )
-        if not kundali:
-            logger.warning("Failed to fetch kundali from API")
-            return "Failed to generate kundali. Please verify the birth details are correct."
-
-        state.kundali = kundali
-        context.session.update_agent(Assistant(kundali=kundali))
-        logger.info("Kundali generated and agent updated")
-        return "Kundali generated successfully. You now have access to the user's birth chart."
+        return "All birth details collected successfully."
 
     @function_tool()
     async def request_text_input(
@@ -155,7 +213,7 @@ class Assistant(Agent):
                         "prompt": prompt_message,
                     }
                 ),
-                response_timeout=60.0,  # Give user time to type
+                response_timeout=60.0,
             )
 
             result = json.loads(response)
@@ -165,10 +223,124 @@ class Assistant(Agent):
             return ""
 
 
+class IntakeAgent(Agent):
+    """Intake agent that collects birth details and sets up the therapy session.
+
+    Orchestrates:
+    1. CollectBirthDetailsTask — gather date, time, place of birth
+    2. fetch_structured_kundali() — get structured chart data from API
+    3. AstroProfiler.generate_xray() — translate to psychological profile
+    4. Handoff to PsychologistAgent with the X-Ray context
+    """
+
+    def __init__(self, chat_ctx: ChatContext | None = None):
+        super().__init__(
+            instructions=(
+                "You help collect birth information for personalized guidance. "
+                "Be warm and conversational."
+            ),
+            chat_ctx=chat_ctx,
+        )
+
+    async def on_enter(self) -> None:
+        # Step 1: Run birth detail collection task
+        birth = await CollectBirthDetailsTask(chat_ctx=self.chat_ctx)
+
+        user_id = self.session.userdata.user_id
+        birth_details = {
+            "date_of_birth": birth.date_of_birth,
+            "time_of_birth": birth.time_of_birth,
+            "latitude": birth.latitude,
+            "longitude": birth.longitude,
+            "timezone": birth.timezone,
+        }
+
+        # Persist birth details immediately so they survive failures below
+        if user_id:
+            try:
+                store = UserStore()
+                await store.save_user_data(user_id, birth_details=birth_details)
+                logger.info(f"Persisted birth details for {user_id}")
+            except Exception as e:
+                logger.warning(f"Failed to persist birth details: {e}")
+            finally:
+                await store.close()
+
+        # Step 2: Fetch structured kundali (Layer A)
+        logger.info("Fetching structured kundali...")
+        kundali = await fetch_structured_kundali(
+            birth.date_of_birth,
+            birth.time_of_birth,
+            birth.latitude,
+            birth.longitude,
+            birth.timezone,
+        )
+
+        if not kundali:
+            logger.error("Failed to fetch structured kundali")
+            await self.session.generate_reply(
+                instructions=(
+                    "Apologize that there was a technical issue generating "
+                    "their profile. Offer to try again or continue without "
+                    "personalized insights."
+                )
+            )
+            return
+
+        self.session.userdata.kundali_json = kundali
+        logger.info("Structured kundali fetched successfully")
+
+        # Step 3: Generate Personality X-Ray (Layer B)
+        logger.info("Generating Personality X-Ray...")
+        profiler = AstroProfiler()
+        try:
+            xray = await profiler.generate_xray(kundali)
+        except Exception as e:
+            logger.error(f"Failed to generate X-Ray: {e}")
+            # Persist kundali even if X-Ray fails
+            if user_id:
+                try:
+                    store = UserStore()
+                    await store.save_user_data(user_id, kundali_json=kundali)
+                    logger.info(f"Persisted kundali (without X-Ray) for {user_id}")
+                except Exception as store_err:
+                    logger.warning(f"Failed to persist kundali: {store_err}")
+                finally:
+                    await store.close()
+            self.session.update_agent(PsychologistAgent())
+            return
+
+        self.session.userdata.personality_xray = xray
+        logger.info("Personality X-Ray generated successfully")
+
+        # Persist kundali + X-Ray for returning users
+        if user_id:
+            try:
+                store = UserStore()
+                await store.save_user_data(
+                    user_id, kundali_json=kundali, personality_xray=xray
+                )
+                logger.info(f"Persisted kundali + X-Ray for {user_id}")
+            except Exception as e:
+                logger.warning(f"Failed to persist user data: {e}")
+            finally:
+                await store.close()
+
+        # Step 4: Handoff to PsychologistAgent (Layer C)
+        self.session.update_agent(PsychologistAgent(personality_xray=xray))
+
+
 server = AgentServer()
 
 
 def prewarm(proc: JobProcess):
+    # Clear Vertex AI env vars in forked worker processes too
+    for var in (
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "GOOGLE_CLOUD_PROJECT",
+        "GOOGLE_CLOUD_LOCATION",
+    ):
+        os.environ.pop(var, None)
     proc.userdata["vad"] = silero.VAD.load()
 
 
@@ -177,23 +349,20 @@ server.setup_fnc = prewarm
 
 @server.rtc_session(agent_name=os.getenv("AGENT_NAME"))
 async def my_agent(ctx: JobContext):
-    # Logging setup
-    # Add any other context you want in all log entries here
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # Connect first to access participant metadata
     await ctx.connect()
-
-    # Wait for the user to join
     participant = await ctx.wait_for_participant()
 
-    # Read conversation history from participant metadata
+    # Load conversation history and user ID from participant metadata
     initial_ctx = None
+    user_id = None
     if participant.metadata:
         try:
             metadata = json.loads(participant.metadata)
+            user_id = metadata.get("user_id")
             history = metadata.get("conversation_history", [])
             if history:
                 initial_ctx = ChatContext()
@@ -203,59 +372,105 @@ async def my_agent(ctx: JobContext):
         except json.JSONDecodeError:
             logger.warning("Failed to parse participant metadata as JSON")
 
-    # Set up a voice AI pipeline using Deepgram STT, Google LLM, ElevenLabs TTS, and LiveKit turn detector
     session = AgentSession[SessionState](
-        # Session state for storing birth details and other user data
-        userdata=SessionState(),
-        # Speech-to-text (STT) using Deepgram directly (bypasses LiveKit inference quota)
-        # See all available models at https://docs.livekit.io/agents/models/stt/plugins/deepgram/
+        userdata=SessionState(user_id=user_id),
         stt=deepgram.STT(model="nova-3", language="en"),
-        # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
-        # See all available models at https://docs.livekit.io/agents/models/llm/
         llm=google.LLM(model="gemini-2.5-flash"),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=elevenlabs.TTS(model="eleven_flash_v2_5", voice_id="bvN2rlvpvH1mT3gPeNUl"),
-        # VAD is used to determine when the user is speaking
         vad=ctx.proc.userdata["vad"],
-        # Turn detection uses the English model for context-aware end-of-turn detection
         turn_detection=EnglishModel(),
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
-        # Increase timeout and retries for LLM to handle Gemini server delays
         conn_options=SessionConnectOptions(
             llm_conn_options=APIConnectOptions(
-                max_retry=5,  # default is 3
-                timeout=30.0,  # default is 10s, increased for Gemini delays
-                retry_interval=3.0,  # default is 2s
+                max_retry=5,
+                timeout=30.0,
+                retry_interval=3.0,
             ),
         ),
     )
 
-    # To use a realtime model instead of a voice pipeline, use the following session setup instead.
-    # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
-    # 1. Install livekit-agents[openai]
-    # 2. Set OPENAI_API_KEY in .env.local
-    # 3. Add `from livekit.plugins import openai` to the top of this file
-    # 4. Use the following session setup instead of the version above
-    # session = AgentSession(
-    #     llm=openai.realtime.RealtimeModel(voice="marin")
-    # )
+    # Layered cache: skip as many steps as possible for returning users.
+    # birth + kundali + xray → skip to PsychologistAgent
+    # birth + kundali, no xray → generate X-Ray, skip to PsychologistAgent
+    # birth only → fetch kundali + generate X-Ray, skip to PsychologistAgent
+    # no data → IntakeAgent (new user)
+    agent: Agent
+    if user_id:
+        try:
+            store = UserStore()
+            birth, kundali, xray = await store.load_user_data(user_id)
 
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = hedra.AvatarSession(
-    #   avatar_id="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/hedra
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
+            if birth and kundali and xray:
+                # Full cache hit — skip everything
+                session.userdata.kundali_json = kundali
+                session.userdata.personality_xray = xray
+                logger.info(f"Full cache hit for user {user_id}")
+                agent = PsychologistAgent(personality_xray=xray, chat_ctx=initial_ctx)
+            elif birth and kundali:
+                # Have kundali but X-Ray failed last time — regenerate
+                session.userdata.kundali_json = kundali
+                logger.info(f"Generating X-Ray from cached kundali for {user_id}")
+                try:
+                    profiler = AstroProfiler()
+                    xray = await profiler.generate_xray(kundali)
+                    session.userdata.personality_xray = xray
+                    await store.save_user_data(user_id, personality_xray=xray)
+                    agent = PsychologistAgent(
+                        personality_xray=xray, chat_ctx=initial_ctx
+                    )
+                except Exception as e:
+                    logger.warning(f"X-Ray generation failed: {e}")
+                    agent = PsychologistAgent(chat_ctx=initial_ctx)
+            elif birth:
+                # Have birth details but kundali missing — fetch + generate
+                logger.info(f"Fetching kundali from cached birth for {user_id}")
+                kundali = await fetch_structured_kundali(
+                    birth["date_of_birth"],
+                    birth["time_of_birth"],
+                    birth["latitude"],
+                    birth["longitude"],
+                    birth["timezone"],
+                )
+                if kundali:
+                    session.userdata.kundali_json = kundali
+                    try:
+                        profiler = AstroProfiler()
+                        xray = await profiler.generate_xray(kundali)
+                        session.userdata.personality_xray = xray
+                        await store.save_user_data(
+                            user_id,
+                            kundali_json=kundali,
+                            personality_xray=xray,
+                        )
+                        agent = PsychologistAgent(
+                            personality_xray=xray, chat_ctx=initial_ctx
+                        )
+                    except Exception as e:
+                        logger.warning(f"X-Ray generation failed: {e}")
+                        await store.save_user_data(user_id, kundali_json=kundali)
+                        agent = PsychologistAgent(chat_ctx=initial_ctx)
+                else:
+                    logger.warning("Kundali fetch failed for cached birth")
+                    agent = PsychologistAgent(chat_ctx=initial_ctx)
+            elif initial_ctx:
+                agent = PsychologistAgent(chat_ctx=initial_ctx)
+            else:
+                agent = IntakeAgent(chat_ctx=initial_ctx)
 
-    assistant = Assistant(chat_ctx=initial_ctx)
+            await store.close()
+        except Exception as e:
+            logger.warning(f"Failed to load user data from store: {e}")
+            if initial_ctx:
+                agent = PsychologistAgent(chat_ctx=initial_ctx)
+            else:
+                agent = IntakeAgent(chat_ctx=initial_ctx)
+    elif initial_ctx:
+        agent = PsychologistAgent(chat_ctx=initial_ctx)
+    else:
+        agent = IntakeAgent(chat_ctx=initial_ctx)
 
-    # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=assistant,
+        agent=agent,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -265,16 +480,6 @@ async def my_agent(ctx: JobContext):
             ),
         ),
     )
-
-    # Generate greeting based on whether user has conversation history
-    if initial_ctx:
-        session.generate_reply(
-            instructions="Say a brief welcome back greeting in one short sentence"
-        )
-    else:
-        session.generate_reply(
-            instructions="Say a brief friendly greeting in one short sentence"
-        )
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Amigo is a Vedic astrology AI voice companion backend built on LiveKit Agents SDK. It runs a voice pipeline (STT → LLM → TTS) that collects a user's birth details, generates their kundali (Vedic birth chart) via external APIs, and provides astrological guidance through natural voice conversation.
+Amigo is a Vedic astrology AI voice companion backend built on LiveKit Agents SDK. It runs a multi-agent voice pipeline that collects a user's birth details, generates their kundali (Vedic birth chart), translates it into a psychological Personality X-Ray, and provides CBT/IFS therapy through natural voice conversation.
 
 ## Commands
 
@@ -22,28 +22,31 @@ uv run ruff check                                      # Lint code
 
 ## Architecture
 
-**Entrypoint**: `src/agent.py` — contains the `Assistant` agent class, `AgentServer` setup, and CLI runner.
+**Entrypoint**: `src/agent.py` — contains agent classes, `AgentServer` setup, and CLI runner.
 
-The `Assistant` class extends LiveKit's `Agent`. Instructions are loaded from `src/prompts/assistant.md` and augmented with the user's kundali when available. Two function tools are defined:
+The server uses a **3-layer agentic pipeline** (see `docs/architecture.md` for the full design):
 
-- `record_birth_details()` — collects birth info incrementally (date, time, place), geocodes location, fetches timezone, then retrieves kundali from AstrologyAPI.com. On success, calls `update_agent()` to inject kundali data into the agent's instructions.
-- `request_text_input()` — RPC call to the client for text input when voice transcription is unreliable (e.g., place names).
+1. **Layer A — Kundali Engine** (`src/astrology.py`): Deterministic API layer. `fetch_structured_kundali()` fetches astro details, planet positions, and Vimshottari Dasha from AstrologyAPI.com in parallel, returns structured JSON dict.
 
-**Voice pipeline** (configured in `my_agent()`):
-- STT: Deepgram Nova-3
-- LLM: Google Gemini 2.5 Flash
-- TTS: ElevenLabs Flash v2.5
-- VAD: Silero (prewarmed in `prewarm()`)
-- Turn detection: English model
-- Noise cancellation: BVC/BVC-Telephony (auto-selected based on SIP vs. browser)
+2. **Layer B — Astro-Profiler** (`src/profiler.py`): `AstroProfiler.generate_xray()` translates structured kundali JSON into a "Personality X-Ray" — a psychological profile with zero astrological vocabulary. Single LLM call (Gemini Flash). Output validated against `XRAY_REQUIRED_KEYS`. Prompt: `src/prompts/profiler.md`.
+
+3. **Layer C — Psychologist Agent** (`src/psychologist.py`): `PsychologistAgent` (extends `Agent`) provides CBT/IFS-based therapy as "Dr. Nova" using the X-Ray as hidden context. Has `update_personality_xray` tool that re-runs Layer B with a new focus topic (Career, Love, Trauma) and hot-swaps itself via `update_agent()`. Prompt: `src/prompts/psychologist.md`.
+
+**Agent flow** (in `src/agent.py`):
+- New users → `IntakeAgent` → runs `CollectBirthDetailsTask` (gathers date/time/place via conversation, geocodes location, resolves timezone) → fetches kundali (Layer A) → generates X-Ray (Layer B) → hands off to `PsychologistAgent` (Layer C)
+- Returning users (with conversation history in participant metadata) → skip intake, go directly to `PsychologistAgent`
 
 **Supporting modules**:
-- `src/astrology.py` — AstrologyAPI.com client; fetches astro details, planet positions, and current Vimshottari Dasha in parallel, then formats as markdown for LLM context.
-- `src/geocoding.py` — Google Maps geocoding (place → lat/lon) and timezone lookup (lat/lon + date → UTC offset). Falls back to longitude-based estimate if `GOOGLE_MAPS_API_KEY` is unset.
-- `src/models.py` — `SessionState` dataclass (birth details, coordinates, timezone, kundali text).
-- `src/prompts.py` — Loads and caches prompt markdown files from `src/prompts/`.
+- `src/geocoding.py` — Google Maps geocoding (place → lat/lon) and timezone lookup. Falls back to longitude-based estimate if `GOOGLE_MAPS_API_KEY` is unset.
+- `src/models.py` — `SessionState` dataclass (birth details, coordinates, timezone, kundali text/JSON, personality X-Ray, focus topic)
+- `src/prompts.py` — Loads and caches prompt markdown files from `src/prompts/`
 
-**Session state**: Conversation history is passed via LiveKit participant metadata. Returning users get a "welcome back" greeting; new users get a fresh greeting.
+**Voice pipeline** (configured in `my_agent()`):
+- STT: Deepgram Nova-3 | LLM: Google Gemini 2.5 Flash | TTS: ElevenLabs Flash v2.5
+- VAD: Silero (prewarmed in `prewarm()`) | Turn detection: English model
+- Noise cancellation: BVC/BVC-Telephony (auto-selected based on SIP vs. browser)
+
+**Session state**: Conversation history is passed via LiveKit participant metadata. Returning users go directly to `PsychologistAgent`; new users go through `IntakeAgent` first.
 
 ### Testing
 

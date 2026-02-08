@@ -1,0 +1,112 @@
+{
+  "$schema": "http://astro-therapist.ai/schemas/personality-xray-v1.json",
+  "title": "Clinical Personality X-Ray",
+  "description": "A translation of astrological data into a psychological profile for therapy. NO ASTROLOGY TERMS ALLOWED.",
+  "type": "object",
+  "properties": {
+    "meta": {
+      "user_id": "String",
+      "generated_at": "ISO-8601 Date",
+      "current_focus_topic": "General | Career | Love | Trauma"
+    },
+    "core_identity": {
+      "description": "Derived from Sun, Ascendant, & 1st Lord",
+      "properties": {
+        "archetype": {
+          "type": "string",
+          "description": "The user's default persona (e.g., 'The Stoic Protector', 'The Perfectionist')."
+        },
+        "self_esteem_source": {
+          "type": "string",
+          "description": "What fuels their ego? (e.g., 'Tangible Achievement', 'Social Validation')."
+        },
+        "shadow_self": {
+          "type": "string",
+          "description": "Unconscious defense mechanisms (e.g., 'Projecting insecurity as arrogance')."
+        }
+      }
+    },
+    "emotional_architecture": {
+      "description": "Derived from Moon & 4th House",
+      "properties": {
+        "attachment_style": {
+          "type": "string",
+          "enum": [
+            "Secure",
+            "Anxious-Preoccupied",
+            "Dismissive-Avoidant",
+            "Fearful-Avoidant"
+          ],
+          "description": "Based on Moon's stability and element."
+        },
+        "regulation_strategy": {
+          "type": "string",
+          "description": "How they self-soothe (e.g., 'Withdrawal', 'Verbal Venting', 'Physical Action')."
+        },
+        "vulnerability_trigger": {
+          "type": "string",
+          "description": "What makes them feel unsafe? (e.g., 'Being ignored', 'Chaos', 'Criticism')."
+        }
+      }
+    },
+    "cognitive_processing": {
+      "description": "Derived from Mercury & 3rd/5th House",
+      "properties": {
+        "thinking_style": {
+          "type": "string",
+          "description": "e.g., 'Intuitive & Fast', 'Slow & Methodical', 'Over-Analytical'."
+        },
+        "anxiety_loop_pattern": {
+          "type": "string",
+          "description": "The specific shape of their worry (e.g., 'Catastrophizing future scenarios', 'Replaying past mistakes')."
+        },
+        "learning_modality": {
+          "type": "string",
+          "description": "Visual, Auditory, Kinesthetic (useful for suggesting homework)."
+        }
+      }
+    },
+    "current_psychological_climate": {
+      "description": "Derived from Dasha & Transits (The most critical section for 'Here & Now' therapy)",
+      "properties": {
+        "season_of_life": {
+          "type": "string",
+          "description": "Metaphorical phase (e.g., 'Wintering/Rest', 'Harvest/Action', 'Storm/Crisis')."
+        },
+        "primary_stressor": {
+          "type": "string",
+          "description": "The root cause of current pressure (e.g., 'Loss of Identity', 'Financial Scarcity')."
+        },
+        "developmental_goal": {
+          "type": "string",
+          "description": "The psychological skill life is forcing them to learn RIGHT NOW (e.g., 'Patience', 'Boundaries')."
+        }
+      }
+    },
+    "domain_specific_insight": {
+      "description": "Dynamic section filled based on 'focus_topic' (e.g., Career, Relationships)",
+      "properties": {
+        "topic": "String",
+        "conflict_pattern": "String (e.g., 'Avoids conflict until exploding')",
+        "unmet_need": "String (e.g., 'Needs a partner who acts as a parent')"
+      }
+    },
+    "therapist_cheat_sheet": {
+      "description": "Direct instructions for the AI Psychologist",
+      "properties": {
+        "recommended_modality": {
+          "type": "string",
+          "description": "e.g., 'CBT for reframing thoughts', 'Somatic for grounding body'."
+        },
+        "communication_do": {
+          "type": "string",
+          "description": "e.g., 'Use logic and data', 'Be warm and validating'."
+        },
+        "communication_avoid": {
+          "type": "string",
+          "description": "e.g., 'Don't be too abstract', 'Don't challenge them too aggressively yet'."
+        }
+      }
+    }
+  }
+}

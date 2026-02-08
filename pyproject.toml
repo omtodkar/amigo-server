@@ -14,11 +14,13 @@ dependencies = [
     "livekit-plugins-noise-cancellation~=0.2",
     "python-dateutil",
     "python-dotenv",
+    "redis[hiredis]>=5.0.0",
     "typer>=0.19.2",
 ]
 
 [dependency-groups]
 dev = [
+    "fakeredis[lua]",
     "pytest",
     "pytest-asyncio",
     "ruff",
@@ -40,7 +42,7 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "B", "A", "C4", "UP", "SIM", "RUF"]
-ignore = ["E501"]  # Line too long (handled by formatter)
+ignore = ["E501", "E402"]  # Line too long; module-level import not at top (needed for env setup)
 
 [tool.ruff.format]
 quote-style = "double"
