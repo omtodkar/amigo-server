@@ -151,7 +151,8 @@ def _make_conversation(convo_id, title="Test", messages=None):
         "conversationId": convo_id,
         "createdAt": 1770581180559,
         "title": title,
-        "messages": messages or [
+        "messages": messages
+        or [
             {"from": "user", "message": "Hello", "timestamp": 1770580983683},
             {"from": "assistant", "message": "Hi!", "timestamp": 1770580967526},
         ],
