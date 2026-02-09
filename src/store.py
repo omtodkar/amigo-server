@@ -11,6 +11,9 @@ logger = logging.getLogger("store")
 TTL_SECONDS = 90 * 24 * 60 * 60  # 90 days
 
 
+MAX_CONVERSATIONS = 5
+
+
 class UserStore:
     """Async Redis client for persisting user birth details, kundali, and X-Ray."""
 
@@ -29,6 +32,9 @@ class UserStore:
 
     def _xray_key(self, user_id: str) -> str:
         return f"amigo:user:{user_id}:xray"
+
+    def _conversations_key(self, user_id: str) -> str:
+        return f"amigo:user:{user_id}:conversations"
 
     async def save_user_data(
         self,
@@ -96,6 +102,40 @@ class UserStore:
     async def has_user_data(self, user_id: str) -> bool:
         """Check if birth details exist for a user."""
         return bool(await self._redis.exists(self._birth_key(user_id)))
+
+    async def save_conversation(self, user_id: str, conversation: dict) -> None:
+        """Prepend a conversation to the user's list, keeping at most MAX_CONVERSATIONS."""
+        key = self._conversations_key(user_id)
+        pipe = self._redis.pipeline()
+        pipe.lpush(key, json.dumps(conversation))
+        pipe.ltrim(key, 0, MAX_CONVERSATIONS - 1)
+        pipe.expire(key, TTL_SECONDS)
+        await pipe.execute()
+
+    async def get_conversations(
+        self, user_id: str, limit: int = MAX_CONVERSATIONS
+    ) -> list[dict]:
+        """Return the user's conversations (most recent first)."""
+        key = self._conversations_key(user_id)
+        raw_items = await self._redis.lrange(key, 0, limit - 1)
+        if raw_items:
+            await self._redis.expire(key, TTL_SECONDS)
+        return [json.loads(item) for item in raw_items]
+
+    async def update_conversation(
+        self, user_id: str, conversation_id: str, new_messages: list[dict]
+    ) -> bool:
+        """Append messages to an existing conversation. Returns True if found."""
+        key = self._conversations_key(user_id)
+        raw_items = await self._redis.lrange(key, 0, -1)
+        for i, raw in enumerate(raw_items):
+            convo = json.loads(raw)
+            if convo.get("conversationId") == conversation_id:
+                convo["messages"].extend(new_messages)
+                await self._redis.lset(key, i, json.dumps(convo))
+                await self._redis.expire(key, TTL_SECONDS)
+                return True
+        return False
 
     async def close(self) -> None:
         """Close the Redis connection."""

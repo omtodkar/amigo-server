@@ -3,7 +3,7 @@
 import fakeredis.aioredis
 import pytest
 
-from store import TTL_SECONDS, UserStore
+from store import MAX_CONVERSATIONS, TTL_SECONDS, UserStore
 
 
 @pytest.fixture
@@ -141,3 +141,94 @@ async def test_ttl_refreshed_on_read(store, sample_birth, sample_kundali, sample
     assert birth_ttl > 100
     assert kundali_ttl > 100
     assert xray_ttl > 100
+
+
+# --- Conversation tests ---
+
+
+def _make_conversation(convo_id, title="Test", messages=None):
+    return {
+        "conversationId": convo_id,
+        "createdAt": 1770581180559,
+        "title": title,
+        "messages": messages or [
+            {"from": "user", "message": "Hello", "timestamp": 1770580983683},
+            {"from": "assistant", "message": "Hi!", "timestamp": 1770580967526},
+        ],
+    }
+
+
+async def test_save_and_get_conversations(store):
+    """Saving and getting conversations returns the same data."""
+    convo = _make_conversation("room-1")
+    await store.save_conversation("user-1", convo)
+    result = await store.get_conversations("user-1")
+    assert len(result) == 1
+    assert result[0] == convo
+
+
+async def test_conversations_most_recent_first(store):
+    """Conversations are returned most recent first (LPUSH order)."""
+    await store.save_conversation("user-1", _make_conversation("room-1"))
+    await store.save_conversation("user-1", _make_conversation("room-2"))
+    await store.save_conversation("user-1", _make_conversation("room-3"))
+    result = await store.get_conversations("user-1")
+    assert [c["conversationId"] for c in result] == ["room-3", "room-2", "room-1"]
+
+
+async def test_conversations_max_limit(store):
+    """Only MAX_CONVERSATIONS are kept in Redis."""
+    for i in range(MAX_CONVERSATIONS + 3):
+        await store.save_conversation("user-1", _make_conversation(f"room-{i}"))
+    result = await store.get_conversations("user-1")
+    assert len(result) == MAX_CONVERSATIONS
+
+
+async def test_conversations_get_with_limit(store):
+    """get_conversations respects the limit parameter."""
+    for i in range(4):
+        await store.save_conversation("user-1", _make_conversation(f"room-{i}"))
+    result = await store.get_conversations("user-1", limit=2)
+    assert len(result) == 2
+
+
+async def test_conversations_empty_user(store):
+    """Getting conversations for unknown user returns empty list."""
+    result = await store.get_conversations("no-such-user")
+    assert result == []
+
+
+async def test_update_conversation(store):
+    """Updating appends messages to an existing conversation."""
+    convo = _make_conversation("room-1")
+    await store.save_conversation("user-1", convo)
+
+    new_msgs = [{"from": "user", "message": "How are you?", "timestamp": 1770581200000}]
+    found = await store.update_conversation("user-1", "room-1", new_msgs)
+    assert found is True
+
+    result = await store.get_conversations("user-1")
+    assert len(result[0]["messages"]) == 3
+    assert result[0]["messages"][-1]["message"] == "How are you?"
+
+
+async def test_update_conversation_not_found(store):
+    """Updating a non-existent conversation returns False."""
+    found = await store.update_conversation("user-1", "no-such-room", [])
+    assert found is False
+
+
+async def test_conversation_ttl(store):
+    """Conversation key has TTL after save."""
+    await store.save_conversation("user-1", _make_conversation("room-1"))
+    ttl = await store._redis.ttl("amigo:user:user-1:conversations")
+    assert 0 < ttl <= TTL_SECONDS
+
+
+async def test_conversation_ttl_refreshed_on_read(store):
+    """Reading conversations refreshes the TTL."""
+    await store.save_conversation("user-1", _make_conversation("room-1"))
+    await store._redis.expire("amigo:user:user-1:conversations", 100)
+    await store.get_conversations("user-1")
+    ttl = await store._redis.ttl("amigo:user:user-1:conversations")
+    assert ttl > 100
