@@ -466,10 +466,8 @@ async def my_agent(ctx: JobContext):
 
     tts_provider = os.getenv("TTS_PROVIDER", "elevenlabs")
     if tts_provider == "google":
-        tts = google.TTS(
-            model_name="gemini-2.5-flash-tts",
+        tts = google.beta.GeminiTTS(
             voice_name="Kore",
-            speaking_rate=0.95,
         )
         logger.info("Using Google Gemini TTS")
     else:
