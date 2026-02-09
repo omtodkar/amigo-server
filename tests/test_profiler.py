@@ -6,7 +6,7 @@ import pytest
 from profiler import XRAY_REQUIRED_KEYS, AstroProfiler
 
 # Path to sample kundali fixture
-SAMPLE_KUNDALI_PATH = Path(__file__).parent.parent / "docs" / "kundali.json"
+SAMPLE_KUNDALI_PATH = Path(__file__).parent.parent / "docs" / "kundali-example.json"
 
 # Astrological terms that must NOT appear in the output values
 FORBIDDEN_ASTRO_TERMS = [
