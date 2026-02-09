@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
@@ -25,6 +27,7 @@ from livekit.agents import (
     AgentTask,
     APIConnectOptions,
     ChatContext,
+    CloseEvent,
     JobContext,
     JobProcess,
     RunContext,
@@ -448,13 +451,15 @@ async def my_agent(ctx: JobContext):
     await ctx.connect()
     participant = await ctx.wait_for_participant()
 
-    # Load conversation history and user ID from participant metadata
+    # Load conversation history, user ID, and conversation ID from participant metadata
     initial_ctx = None
     user_id = None
+    conversation_id = None
     if participant.metadata:
         try:
             metadata = json.loads(participant.metadata)
             user_id = metadata.get("user_id")
+            conversation_id = metadata.get("conversation_id")
             history = metadata.get("conversation_history", [])
             if history:
                 initial_ctx = ChatContext()
@@ -594,6 +599,113 @@ async def my_agent(ctx: JobContext):
             ),
         ),
     )
+
+    # Save conversation to Redis when session closes
+    _background_tasks: set[asyncio.Task] = set()  # prevent GC of fire-and-forget tasks
+
+    @session.on("close")
+    def _on_session_close(ev: CloseEvent) -> None:
+        now_ms = int(time.time() * 1000)
+        messages: list[dict] = []
+
+        # Include kundali/xray summaries as system messages
+        state: SessionState = session.userdata
+        if state.kundali_json:
+            summary = _summarize_kundali(state.kundali_json)
+            if summary:
+                messages.append(
+                    {"from": "system", "message": summary, "timestamp": now_ms}
+                )
+        if state.personality_xray:
+            summary = _summarize_xray(state.personality_xray)
+            if summary:
+                messages.append(
+                    {"from": "system", "message": summary, "timestamp": now_ms}
+                )
+
+        # Add user/assistant messages from conversation history
+        for item in session.history.items:
+            if item.type == "message" and item.role in ("user", "assistant"):
+                messages.append(
+                    {
+                        "from": item.role,
+                        "message": item.text_content,
+                        "timestamp": now_ms,
+                    }
+                )
+
+        if messages and user_id:
+            task = asyncio.create_task(
+                _save_conversation(user_id, conversation_id, ctx.room.name, messages)
+            )
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
+
+
+async def _generate_title(messages: list[dict]) -> str:
+    """Generate a short title for a conversation via Gemini."""
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return "Untitled conversation"
+    try:
+        from google import genai
+
+        client = genai.Client(api_key=api_key)
+        transcript = "\n".join(
+            f"{'User' if m['from'] == 'user' else 'Assistant'}: {m['message']}"
+            for m in messages
+            if m["from"] in ("user", "assistant")
+        )
+        response = await client.aio.models.generate_content(
+            model="gemini-2.0-flash-lite",
+            contents=(
+                "Generate a concise 3-5 word title summarizing this mental wellness "
+                "conversation. Focus on the main topic or concern discussed. "
+                "Do not use quotes or punctuation.\n\n"
+                f"Conversation:\n{transcript}\n\nTitle:"
+            ),
+        )
+        return (response.text or "").strip() or "Untitled conversation"
+    except Exception:
+        logger.exception("Title generation failed")
+        return "Untitled conversation"
+
+
+async def _save_conversation(
+    user_id: str,
+    conversation_id: str | None,
+    room_name: str,
+    messages: list[dict],
+) -> None:
+    """Save or update a conversation in Redis."""
+    store = UserStore()
+    try:
+        if conversation_id:
+            # Continuing an existing conversation — append messages
+            found = await store.update_conversation(user_id, conversation_id, messages)
+            if found:
+                logger.info(
+                    f"Appended {len(messages)} messages to conversation "
+                    f"{conversation_id} for {user_id}"
+                )
+                return
+            # Conversation not found in Redis — fall through to save as new
+
+        # New conversation — generate title and save
+        title = await _generate_title(messages)
+        convo_id = conversation_id or room_name
+        conversation = {
+            "conversationId": convo_id,
+            "createdAt": messages[0]["timestamp"] if messages else 0,
+            "title": title,
+            "messages": messages,
+        }
+        await store.save_conversation(user_id, conversation)
+        logger.info(f"Saved new conversation {convo_id} for {user_id}")
+    except Exception as e:
+        logger.warning(f"Failed to save conversation: {e}")
+    finally:
+        await store.close()
 
 
 if __name__ == "__main__":
