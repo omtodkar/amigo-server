@@ -56,7 +56,8 @@ async def test_psychologist_greeting():
         await result.expect.next_event(type="message").judge(
             llm,
             intent="""
-                Greets the client warmly and invites them to share what's on their mind.
+                Greets the client warmly and shows openness to conversation
+                (e.g. asking how they are, inviting them to share, or similar).
                 Does NOT mention astrology, charts, birth details, or any astrological concepts.
                 Sounds like a psychologist or therapist, not an astrologer.
                 """,
